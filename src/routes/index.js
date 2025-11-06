@@ -1,7 +1,7 @@
 import { Router } from "express";
 
 // Middlewares
-import { verifyToken, isAdmin } from "../middlewares/authMiddleware.js";
+import { verifyToken } from "../middlewares/authMiddleware.js";
 
 // Route modules
 import productRoutes from "./product.js";
@@ -10,6 +10,8 @@ import categoryRoutes from "./category.js";
 import orderRoutes from "./order.js";
 import variantRoutes from "./variant.js";
 import cartRoutes from "./cart.js";
+import authRoutes from "./auth.js";
+
 
 const routes = Router();
 
@@ -20,6 +22,8 @@ routes.use("/categories", categoryRoutes);
 routes.use("/orders", orderRoutes);
 routes.use("/variants", variantRoutes);
 routes.use("/cart", cartRoutes);
+routes.use("/auth", authRoutes);
+
 
 
 
