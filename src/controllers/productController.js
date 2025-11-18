@@ -1,11 +1,26 @@
 import Product from "../models/Product.js";
 import createError from "../utils/createError.js";
+import mongoose from "mongoose";
 
 // Create a new product
 export const createProduct = async (req, res) => {
 	const body = req.body;
 
-	
+	// Log body để debug
+	console.log("Create product body:", body);
+
+	// Tạo slug tự động nếu chưa có
+	if (!body.slug && body.name) {
+		body.slug = body.name
+			.toLowerCase()
+			.replace(/[^\w]+/g, "-")
+			.replace(/^-+|-+$/g, "");
+	}
+
+	// Validate category ObjectId nếu có
+	if (body.category && !mongoose.Types.ObjectId.isValid(body.category)) {
+		return res.status(400).json({ success: false, message: "Invalid category ID" });
+	}
 
 	try {
 		const product = await Product.create(body);
@@ -13,9 +28,16 @@ export const createProduct = async (req, res) => {
 	} catch (err) {
 		// Handle duplicate key just in case of race conditions
 		if (err && err.code === 11000) {
-			throw createError(409, "Duplicate product slug");
+			return res.status(409).json({ success: false, message: "Duplicate product slug" });
 		}
-		throw err;
+		console.error(err);
+
+		// Nếu lỗi do CastError (ObjectId sai) hoặc ValidationError
+		if (err.name === "CastError" || err.name === "ValidationError") {
+			return res.status(400).json({ success: false, message: err.message });
+		}
+
+		return res.status(500).json({ success: false, message: "Server error" });
 	}
 };
 
@@ -52,6 +74,12 @@ export const getProducts = async (req, res) => {
 // Get product detail by id
 export const getProductById = async (req, res) => {
 	const { id } = req.params;
+
+	// Kiểm tra id hợp lệ
+	if (!mongoose.Types.ObjectId.isValid(id)) {
+		return res.status(400).json({ success: false, message: "Invalid product ID" });
+	}
+
 	const product = await Product.findById(id);
 	if (!product) throw createError(404, "Product not found");
 	return res.success(product, "Product retrieved", 200);
@@ -61,6 +89,11 @@ export const getProductById = async (req, res) => {
 export const updateProduct = async (req, res) => {
 	const { id } = req.params;
 	const updates = req.body;
+
+	if (!mongoose.Types.ObjectId.isValid(id)) {
+		return res.status(400).json({ success: false, message: "Invalid product ID" });
+	}
+
 	const product = await Product.findByIdAndUpdate(id, updates, { new: true });
 	if (!product) throw createError(404, "Product not found");
 	return res.success(product, "Product updated", 200);
@@ -69,6 +102,11 @@ export const updateProduct = async (req, res) => {
 // Delete product
 export const deleteProduct = async (req, res) => {
 	const { id } = req.params;
+
+	if (!mongoose.Types.ObjectId.isValid(id)) {
+		return res.status(400).json({ success: false, message: "Invalid product ID" });
+	}
+
 	const product = await Product.findByIdAndDelete(id);
 	if (!product) throw createError(404, "Product not found");
 	return res.success(product, "Product deleted", 200);

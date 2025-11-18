@@ -125,7 +125,7 @@ export const updateCategory = async (req, res) => {
 
         const category = await Category.findByIdAndUpdate(
             id,
-            updates,
+            updates,    
             { new: true, runValidators: true }
         );
 
