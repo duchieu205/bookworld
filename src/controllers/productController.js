@@ -5,30 +5,7 @@ import createError from "../utils/createError.js";
 export const createProduct = async (req, res) => {
 	const body = req.body;
 
-	// Helper: generate a slug from name (remove diacritics and normalize)
-	const generateSlug = (name) =>
-		String(name)
-			.normalize("NFD") // split accents
-			.replace(/[,;:.!@#\$%\^&\*\(\)\[\]\{\}\\/\\\?\+="'`~<>|]+/g, "") // remove punctuation
-			.replace(/[\u0300-\u036f]/g, "") // remove diacritics
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/(^-|-$)+/g, "");
-
-	// Basic slug fallback: if slug not provided, derive from name
-	if (!body.slug && body.name) {
-		body.slug = generateSlug(body.name);
-	}
-
-	// Ensure slug uniqueness: append suffix if needed
-	let baseSlug = body.slug || "product";
-	let slug = baseSlug;
-	let attempt = 0;
-	while (await Product.findOne({ slug })) {
-		attempt += 1;
-		slug = `${baseSlug}-${attempt}`;
-	}
-	body.slug = slug;
+	
 
 	try {
 		const product = await Product.create(body);

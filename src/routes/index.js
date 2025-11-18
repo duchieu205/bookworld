@@ -12,7 +12,6 @@ import variantRoutes from "./variant.js";
 import cartRoutes from "./cart.js";
 import authRoutes from "./auth.js";
 
-
 const routes = Router();
 
 // API resource routes
