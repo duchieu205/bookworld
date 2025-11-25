@@ -1,47 +1,21 @@
 import mongoose from "mongoose";
 
-const { Schema } = mongoose;
+const CouponSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true, uppercase: true },
+  type: { type: String, enum: ["percent", "fixed"], required: true },
+  value: { type: Number, required: true },
 
-const discountSchema = new Schema(
-  {
-    code:{
-      type: String,
-      require: true
-    },
-  
-    productID: {
-      type: String,
-      required: true,
-    },
-    variantID: {
-      type: String,
-      required: true,
-    },
-   discount_type: {
-      type: String,
-      enum: ["%", "vnd"],
-      default: "%",
-    },
-    discount_value: {
-      type: String,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["active", "inactive"],
-      default: "active",
-    },
-    
-    date:{
-      type:[Date],
-      required:true
-    }
-    
-    
-  },
-  { timestamps: true }
-);
+  minOrderValue: { type: Number, default: 0 },
+  startsAt: { type: Date, default: Date.now },
+  endsAt: { type: Date },
 
-const Discount = mongoose.model("Discount", discountSchema);
+  totalUsageLimit: { type: Number }, 
+  usedCount: { type: Number, default: 0 },
+  perUserLimit: { type: Number, default: 1 },
 
-export default Discount;
+  applicableProducts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+
+  status: { type: String, default: "active" }
+}, { timestamps: true });
+
+export default mongoose.model("Coupon", CouponSchema);
