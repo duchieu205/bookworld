@@ -1,8 +1,8 @@
 import mongoose from "mongoose";
 
-const CouponSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, uppercase: true },
-  type: { type: String, enum: ["percent", "fixed"], required: true },
+const DiscountSchema = new mongoose.Schema({
+  code: { type: String, required: true, unique: true, uppercase: true, match: [/^[A-Z0-9]+$/, "Mã giảm giá chỉ gồm chữ và số, không khoảng trắng"] },
+  type: { type: String, default: "percent" },
   value: { type: Number, required: true },
 
   minOrderValue: { type: Number, default: 0 },
@@ -18,4 +18,4 @@ const CouponSchema = new mongoose.Schema({
   status: { type: String, default: "active" }
 }, { timestamps: true });
 
-export default mongoose.model("Coupon", CouponSchema);
+export default mongoose.model("Discount", DiscountSchema);

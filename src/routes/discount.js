@@ -1,6 +1,11 @@
 import { Router } from "express";
+import handleAsync from "../utils/handleAsync.js";
+import discountController from "../controllers/discountController.js";
 const router = Router();
 
-// Nhóm bạn sẽ code route category ở đây sau
+router.post("/", handleAsync(discountController.createDiscount));
+router.get("/", handleAsync(discountController.getDiscount));
+router.delete("/", handleAsync(discountController.deleteDiscount));
+
 
 export default router;

@@ -30,7 +30,7 @@ import User from "../models/User.js";
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
            
 
-            return res.status(201).json({ token, message: "Đăng ký thành côngg" } });
+            return res.status(201).json({ token, message: "Đăng ký thành công" } );
         } 
         catch (err) {
             console.error('Register error:', err);
