@@ -30,7 +30,7 @@ import User from "../models/User.js";
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
            
 
-            return res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email, message: "Đăng ký thành côngg" } });
+            return res.status(201).json({ token, message: "Đăng ký thành côngg" } });
         } 
         catch (err) {
             console.error('Register error:', err);
@@ -62,7 +62,7 @@ import User from "../models/User.js";
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 
 
-            return res.json({ token, user: { id: user._id, name: user.name, email: user.email }, message: "Đăng nhập thành công" });
+            return res.json({ token, message: "Đăng nhập thành công" });
             } catch (err) {
             console.error(err);
             return res.status(500).json({ message: 'Lỗi server' });
