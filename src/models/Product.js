@@ -8,7 +8,10 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
+    author: {
+      type: String,
+      required: true
+    },
     slug: {
       type: String,
       unique: true,
