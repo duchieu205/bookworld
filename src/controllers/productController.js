@@ -9,13 +9,21 @@ export const createProduct = async (req, res) => {
 	// Log body để debug
 	console.log("Create product body:", body);
 
-	// Tạo slug tự động nếu chưa có
 	if (!body.slug && body.name) {
-		body.slug = body.name
+		let slug = body.name
 			.toLowerCase()
 			.replace(/[^\w]+/g, "-")
 			.replace(/^-+|-+$/g, "");
-	}
+
+		// Kiểm tra trùng
+		const existing = await Product.findOne({ slug });
+		if (existing) {
+			slug += '-' + Date.now(); // thêm timestamp tránh trùng
+		}
+
+		body.slug = slug;
+		}
+
 
 	// Validate category ObjectId nếu có
 	if (body.category && !mongoose.Types.ObjectId.isValid(body.category)) {
