@@ -7,6 +7,8 @@ const router = Router();
 // List products (with pagination & filters)
 router.get("/", handleAsync(productController.getProducts));
 
+router.get("/search", handleAsync(productController.searchProducts));
+
 // Create product
 router.post("/", handleAsync(productController.createProduct));
 
@@ -18,5 +20,8 @@ router.put("/:id", handleAsync(productController.updateProduct));
 
 // Delete product
 router.delete("/:id", handleAsync(productController.deleteProduct));
+
+
+
 
 export default router;
