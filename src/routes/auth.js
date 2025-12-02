@@ -3,7 +3,8 @@ import express from "express";
 import { body } from "express-validator";
 import * as authController from "../controllers/authController.js";
 import auth from "../middlewares/authMiddleware.js";
-
+import bcrypt from "bcrypt";
+import User from "../models/User.js";
 const router = express.Router();
 
 // POST /api/auth/register
@@ -25,6 +26,19 @@ const router = express.Router();
     ],
     authController.login
     );
+
+    router.post("/create-admin", async (req, res) => {
+    const hashed = await bcrypt.hash(req.body.password, 10);
+
+    const admin = await User.create({
+        name: req.body.name,
+        email: req.body.email,
+        password: hashed,
+        role: "admin",
+    });
+
+    return res.json({ message: "Tạo admin thành công", admin });
+});
 
 
     // GET /api/auth/me
