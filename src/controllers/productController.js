@@ -120,10 +120,28 @@ export const deleteProduct = async (req, res) => {
 	return res.success(product, "Product deleted", 200);
 };
 
+export const searchProducts = async (req, res) => {
+  try {
+    const { q } = req.query; // query string: ?q=keyword
+
+    if (!q) return res.status(400).json({ message: "Vui lòng nhập từ khóa" });
+
+    // tìm sản phẩm tên chứa từ khóa, không phân biệt hoa thường
+    const products = await Product.find({
+      name: { $regex: q, $options: "i" } // "i" = ignore case
+    });
+
+    res.json({ results: products });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
 export default {
 	createProduct,
 	getProducts,
 	getProductById,
 	updateProduct,
 	deleteProduct,
+	searchProducts
 };
