@@ -62,7 +62,13 @@ import User from "../models/User.js";
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 
 
-            return res.json({ token, message: "Đăng nhập thành công" });
+            return res.json({ token, 
+                user: {
+                    _id: user._id,
+                    fullname: user.name,
+                    email: user.email
+                }, 
+            message: "Đăng nhập thành công" });
             } catch (err) {
             console.error(err);
             return res.status(500).json({ message: 'Lỗi server' });
