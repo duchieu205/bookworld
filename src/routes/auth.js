@@ -2,7 +2,7 @@ import express from "express";
 
 import { body } from "express-validator";
 import * as authController from "../controllers/authController.js";
-import auth from "../middlewares/authMiddleware.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 import bcrypt from "bcrypt";
 import User from "../models/User.js";
 const router = express.Router();
@@ -27,6 +27,7 @@ const router = express.Router();
     authController.login
     );
 
+    router.get('/me', authMiddleware.verifyToken ,authController.getUserId);
 
 
 

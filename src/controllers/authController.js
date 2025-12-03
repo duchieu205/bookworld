@@ -72,5 +72,25 @@ import User from "../models/User.js";
             } catch (err) {
             console.error(err);
             return res.status(500).json({ message: 'Lỗi server' });
-            }
+            };
+        
+
+    };
+        export const getUserId = async(req, res) => {
+                try {
+    
+                    if (!req.user)
+                    return res.status(404).json({ success: false, message: "User not found" });
+
+                    const { password, ...userData } = req.user.toObject(); // loại bỏ password
+                    return res.status(200).json({
+                    success: true,
+                    message: "User retrieved",
+                    data: userData,
+                    });
+                } catch (err) {
+                    console.error(err);
+                    return res.status(500).json({ success: false, message: "Server error" });
+                }
+
     };
