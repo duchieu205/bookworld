@@ -8,7 +8,7 @@ const router = Router();
 router.get("/", handleAsync(productController.getProducts));
 
 router.get("/search", handleAsync(productController.searchProducts));
-
+router.get("/:id/related", handleAsync(productController.getRelatedProducts));
 // Create product
 router.post("/", handleAsync(productController.createProduct));
 

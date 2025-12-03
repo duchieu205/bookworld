@@ -137,11 +137,28 @@ export const searchProducts = async (req, res) => {
     res.status(500).json({ message: "Lỗi server" });
   }
 };
+
+export const getRelatedProducts = async (req, res) => {
+    const { id } = req.params;
+
+    const product = await Product.findById(id);
+    if (!product) {
+        return res.status(404).json({ message: "Product not found" });
+    }
+
+    const related = await Product.find({
+        category: product.category,
+        _id: { $ne: id }
+    }).limit(6);
+
+    return res.json({ data: related });
+};
 export default {
 	createProduct,
 	getProducts,
 	getProductById,
 	updateProduct,
 	deleteProduct,
-	searchProducts
+	searchProducts,
+	getRelatedProducts
 };

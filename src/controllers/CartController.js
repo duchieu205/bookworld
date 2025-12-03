@@ -14,6 +14,7 @@ export const addItem = async (req, res) => {
     const userId = req.user && (req.user._id || req.user.userId);
     if (!userId) throw createError(401, "Chưa đăng nhập");
 
+    
     const { product_id, variant_id = null, quantity = 1 } = req.body;
     if (!product_id) throw createError(400, "Thiếu product_id");
     const qty = Math.max(1, parseInt(quantity, 10) || 1);
