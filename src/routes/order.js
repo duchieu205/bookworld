@@ -8,6 +8,7 @@ import {
 	getAllOrders,
 	updateOrderStatus,
 	cancelOrder,
+	payOrder,
 	paymentWebhook,
 } from "../controllers/orderController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
@@ -29,6 +30,9 @@ router.put("/:id/status", authMiddleware.verifyToken, updateOrderStatus);
 
 // Cancel order (owner or admin)
 router.delete("/:id", authMiddleware.verifyToken, cancelOrder);
+
+// Start payment for an order (creates a checkout session / payment intent)
+router.post("/:id/pay", authMiddleware.verifyToken, payOrder);
 
 // Payment webhook (no auth expected from gateway; keep auth for safety if needed)
 router.post("/webhook/payment", paymentWebhook);

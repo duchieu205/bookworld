@@ -3,6 +3,11 @@ import Product from "../models/Product.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
+import Stripe from "stripe";
+
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const STRIPE_CURRENCY = process.env.STRIPE_CURRENCY || "vnd";
 
 // Create an order. If body.items is omitted, it will try to build from the user's cart.
 export const createOrder = async (req, res) => {
@@ -178,8 +183,80 @@ export const cancelOrder = async (req, res) => {
 	return res.success(order, "Đơn hàng đã huỷ", 200);
 };
 
+export const payOrder = async (req, res) => {
+	const { id } = req.params;
+	const userId = req.user && req.user.userId;
+	if (!userId) throw createError(401, "Chưa đăng nhập");
+
+	const order = await Order.findById(id);
+	if (!order) throw createError(404, "Order không tồn tại");
+	if (String(order.user_id) !== String(userId) && !req.user.isAdmin) throw createError(403, "Không có quyền thanh toán đơn này");
+	if (order.status !== "pending") throw createError(400, "Chỉ được thanh toán đơn hàng ở trạng thái pending");
+
+	if (!stripe) throw createError(500, "Stripe chưa cấu hình trên server");
+
+	// Build line items for Stripe Checkout. Note: unit_amount must be an integer.
+	const line_items = order.items.map((it) => ({
+		price_data: {
+			currency: STRIPE_CURRENCY,
+			product_data: { name: it.name || "Item" },
+			unit_amount: Math.round(Number(it.price || 0)),
+		},
+		quantity: Number(it.quantity || 1),
+	}));
+
+	const session = await stripe.checkout.sessions.create({
+		payment_method_types: ["card"],
+		line_items,
+		mode: "payment",
+		success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+		cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-cancel`,
+		metadata: { orderId: order._id.toString() },
+	});
+
+	order.payment.method = "stripe";
+	order.payment.transaction_id = session.id;
+	await order.save();
+
+	return res.success({ url: session.url, sessionId: session.id }, "Checkout session created", 200);
+};
+
 export const paymentWebhook = async (req, res) => {
-	// Simple stub: expect { orderId, status, transaction_id }
+	// If Stripe is configured and a webhook secret provided, try to verify signature
+	const sig = req.headers && (req.headers["stripe-signature"] || req.headers["Stripe-Signature"]);
+	if (stripe && STRIPE_WEBHOOK_SECRET && sig) {
+		let event;
+		try {
+			// constructEvent expects the exact raw body bytes used to compute signature.
+			// Many setups expose the raw body; if not available, we attempt to recreate from JSON.
+			const payload = Buffer.from(JSON.stringify(req.body));
+			event = stripe.webhooks.constructEvent(payload, sig, STRIPE_WEBHOOK_SECRET);
+		} catch (err) {
+			return res.status(400).send(`Webhook signature verification failed: ${err.message}`);
+		}
+
+		// Handle checkout.session.completed
+		if (event.type === "checkout.session.completed") {
+			const session = event.data.object;
+			const orderId = session.metadata && session.metadata.orderId;
+			if (!orderId) return res.success({}, "No order metadata", 200);
+			const order = await Order.findById(orderId);
+			if (!order) return res.success({}, "Order not found", 200);
+			if (order.payment.status === "paid") return res.success(order, "Already paid", 200);
+
+			order.payment.status = "paid";
+			order.payment.transaction_id = session.payment_intent || session.id;
+			order.status = "confirmed";
+			await order.save();
+
+			return res.success(order, "Stripe payment processed", 200);
+		}
+
+		// Other Stripe events can be handled here
+		return res.success({}, "Event received", 200);
+	}
+
+	// Fallback: simple stub for non-Stripe providers or manual calls
 	const { orderId, status, transaction_id } = req.body;
 	if (!orderId) throw createError(400, "Thiếu orderId");
 
