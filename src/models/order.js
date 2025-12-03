@@ -18,7 +18,7 @@ const orderSchema = new Schema(
 		user_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
 		items: [orderItemSchema],
 		subtotal: { type: Number, required: true, default: 0 },
-		shipping_fee: { type: Number, default: 0 },
+		shipping_fee: { type: Number, default: 30000 },
 		discount: {
 			code: { type: String },
 			amount: { type: Number, default: 0 },

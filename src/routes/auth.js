@@ -27,22 +27,7 @@ const router = express.Router();
     authController.login
     );
 
-    router.post("/create-admin", async (req, res) => {
-    const hashed = await bcrypt.hash(req.body.password, 10);
 
-    const admin = await User.create({
-        name: req.body.name,
-        email: req.body.email,
-        password: hashed,
-        role: "admin",
-    });
-
-    return res.json({ message: "Tạo admin thành công", admin });
-});
-
-
-    // GET /api/auth/me
-    // router.get('/me', auth, authController.getMe);
 
 
 export default router;
