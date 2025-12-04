@@ -9,12 +9,6 @@ import {
 	updateOrderStatus,
 	cancelOrder,
 	payOrder,
-<<<<<<< HEAD
-	createMomoPayment,
-    createZaloPayPayment,
-	momoWebhook,
-=======
->>>>>>> 276beefb96fdb6a0eb5ad74195e75c6e7c1c4068
 	paymentWebhook,
 } from "../controllers/orderController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
@@ -40,25 +34,6 @@ router.delete("/:id", authMiddleware.verifyToken, cancelOrder);
 // Start payment for an order (creates a checkout session / payment intent)
 router.post("/:id/pay", authMiddleware.verifyToken, payOrder);
 
-<<<<<<< HEAD
-// Momo payment creation
-router.post("/:id/pay/momo", authMiddleware.verifyToken, createMomoPayment);
-
-// ZaloPay payment creation
-router.post("/:id/pay/zalopay", authMiddleware.verifyToken, createZaloPayPayment);
-
 // Payment webhook (no auth expected from gateway; keep auth for safety if needed)
 router.post("/webhook/payment", paymentWebhook);
-
-// Momo IPN webhook
-router.post("/webhook/momo", momoWebhook);
-
-// ZaloPay IPN webhook
-router.post("/webhook/zalopay", zalopayWebhook);
-
-=======
-// Payment webhook (no auth expected from gateway; keep auth for safety if needed)
-router.post("/webhook/payment", paymentWebhook);
-
->>>>>>> 276beefb96fdb6a0eb5ad74195e75c6e7c1c4068
 export default router;
