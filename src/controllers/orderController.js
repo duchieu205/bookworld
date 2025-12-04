@@ -4,8 +4,11 @@ import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
 import Stripe from "stripe";
+<<<<<<< HEAD
 import fetch from "node-fetch";
 import crypto from "crypto";
+=======
+>>>>>>> 276beefb96fdb6a0eb5ad74195e75c6e7c1c4068
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
@@ -223,6 +226,7 @@ export const payOrder = async (req, res) => {
 	return res.success({ url: session.url, sessionId: session.id }, "Checkout session created", 200);
 };
 
+<<<<<<< HEAD
 // Create a Momo payment and return a payment URL
 export const createMomoPayment = async (req, res) => {
 	const { id } = req.params;
@@ -447,6 +451,8 @@ export const zalopayWebhook = async (req, res) => {
 	}
 };
 
+=======
+>>>>>>> 276beefb96fdb6a0eb5ad74195e75c6e7c1c4068
 export const paymentWebhook = async (req, res) => {
 	// If Stripe is configured and a webhook secret provided, try to verify signature
 	const sig = req.headers && (req.headers["stripe-signature"] || req.headers["Stripe-Signature"]);
@@ -504,7 +510,10 @@ export default {
 	getAllOrders,
 	updateOrderStatus,
 	cancelOrder,
+<<<<<<< HEAD
 	createMomoPayment,
 	momoWebhook,
+=======
+>>>>>>> 276beefb96fdb6a0eb5ad74195e75c6e7c1c4068
 	paymentWebhook,
 };
