@@ -28,6 +28,8 @@ const router = express.Router();
     );
 
     router.get('/me', authMiddleware.verifyToken ,authController.getUserId);
+    router.get('/allUser', authMiddleware.verifyToken ,authController.getAllUser);
+
 
 
 

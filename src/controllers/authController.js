@@ -78,7 +78,6 @@ import User from "../models/User.js";
     };
         export const getUserId = async(req, res) => {
                 try {
-    
                     if (!req.user)
                     return res.status(404).json({ success: false, message: "User not found" });
 
@@ -92,5 +91,20 @@ import User from "../models/User.js";
                     console.error(err);
                     return res.status(500).json({ success: false, message: "Server error" });
                 }
+                };
 
-    };
+
+        export const getAllUser = async(req, res) => {
+            try {
+                const users = await User.find().select("-password");
+                return res.status(200).json({
+                success: true,
+                message: "Lấy danh sách user thành công",
+                data: users
+                });
+            }
+            catch (err) {
+                    console.error(err);
+                    return res.status(500).json({ success: false, message: "Lấy thông tin user thất bại" });
+                };
+        }   
