@@ -11,7 +11,7 @@ const STRIPE_CURRENCY = process.env.STRIPE_CURRENCY || "vnd";
 
 // Create an order. If body.items is omitted, it will try to build from the user's cart.
 export const createOrder = async (req, res) => {
-	const userId = req.user && req.user.userId;
+	const userId = req.user && req.user._id;
 	if (!userId) throw createError(401, "Chưa đăng nhập");
 
 	const { items: bodyItems, shipping_address = {}, shipping_fee = 0, note = "", discountCode } = req.body;
@@ -25,6 +25,7 @@ export const createOrder = async (req, res) => {
 			name: it.name,
 			price: Number(it.price || 0),
 			quantity: Number(it.quantity || 1),
+			image: it.image || "" // them image
 		}));
 	} else {
 		const cart = await Cart.findOne({ user_id: userId }).populate("items.product_id");
@@ -38,6 +39,7 @@ export const createOrder = async (req, res) => {
 					name: prod ? prod.name : "",
 					price: prod ? prod.price : 0,
 					quantity: it.quantity,
+					image: prod && prod.images ? prod.images[0] : ""
 				};
 			})
 		);
@@ -74,14 +76,19 @@ export const createOrder = async (req, res) => {
 	const total = Math.max(0, subtotal + Number(shipping_fee || 0) - discountAmount);
 
 	const order = await Order.create({
-		user_id: userId,
+user_id: userId,
 		items,
 		subtotal,
 		shipping_fee: Number(shipping_fee || 0),
-		discount: { code: discountCode, amount: discountAmount },
+		discount: { code: discountCode || "", amount: discountAmount },
 		total,
 		shipping_address,
 		note,
+		status: "pending", // status mặc định
+		payment: {
+			method: req.body.payment?.method || "cod",
+			status: req.body.payment?.status || "pending"
+		}
 	});
 
 	// decrement product stocks
@@ -94,7 +101,11 @@ export const createOrder = async (req, res) => {
 		await Cart.findOneAndDelete({ user_id: userId });
 	}
 
-	return res.success(order, "Đơn hàng đã tạo", 201);
+	return res.status(201).json({ 
+		success: true, 
+		message: "Đơn hàng đã tạo", 
+		data: order 
+	});
 };
 
 export const getOrderById = async (req, res) => {
@@ -102,15 +113,24 @@ export const getOrderById = async (req, res) => {
 	const order = await Order.findById(id).populate("user_id", "name email").populate("items.product_id", "name price");
 	if (!order) throw createError(404, "Không tìm thấy đơn hàng");
 
-	// allow owner or admin
-	const userId = req.user && req.user.userId;
-	if (!req.user || (String(order.user_id._id) !== String(userId) && !req.user.isAdmin)) throw createError(403, "Không có quyền truy cập đơn hàng này");
+	
+	const userId = req.user && req.user._id;
+	const isAdmin = req.user && req.user.role === "admin";
+	
+	if (!req.user || (String(order.user_id._id) !== String(userId) && !isAdmin)) {
+		throw createError(403, "Không có quyền truy cập đơn hàng này");
+	}
 
-	return res.success(order, "Chi tiết đơn hàng", 200);
+	return res.status(200).json({ 
+		success: true, 
+		message: "Chi tiết đơn hàng", 
+		data: order 
+	});
 };
 
 export const getUserOrders = async (req, res) => {
-	const userId = req.user && req.user.userId;
+	
+	const userId = req.user && req.user._id;
 	if (!userId) throw createError(401, "Chưa đăng nhập");
 
 	const { page = 1, limit = 20, status } = req.query;
@@ -120,13 +140,23 @@ export const getUserOrders = async (req, res) => {
 	const lim = Math.max(1, parseInt(limit, 10));
 
 	const total = await Order.countDocuments(q);
-	const items = await Order.find(q).skip((pg - 1) * lim).limit(lim).sort({ createdAt: -1 });
+	const items = await Order.find(q)
+		.skip((pg - 1) * lim)
+		.limit(lim)
+		.sort({ createdAt: -1 })
+		.populate("items.product_id", "name price images");
 
-	return res.success({ items, total, page: pg, limit: lim }, "Danh sách đơn hàng của người dùng", 200);
+	return res.status(200).json({ 
+		success: true, 
+		message: "Danh sách đơn hàng của người dùng", 
+		data: items // Trả về mảng items thay vì object
+	});
 };
 
 export const getAllOrders = async (req, res) => {
-	if (!req.user || !req.user.isAdmin) throw createError(403, "Chỉ admin mới thực hiện được thao tác này");
+	// Kiểm tra role
+	const isAdmin = req.user && req.user.role === "admin";
+	if (!isAdmin) throw createError(403, "Chỉ admin mới thực hiện được thao tác này");
 
 	const { page = 1, limit = 20, status, q: search } = req.query;
 	const query = {};
@@ -139,9 +169,12 @@ export const getAllOrders = async (req, res) => {
 	const total = await Order.countDocuments(query);
 	const items = await Order.find(query).skip((pg - 1) * lim).limit(lim).sort({ createdAt: -1 });
 
-	return res.success({ items, total, page: pg, limit: lim }, "Danh sách đơn hàng (admin)", 200);
+	return res.status(200).json({ 
+		success: true, 
+		message: "Danh sách đơn hàng (admin)", 
+		data: { items, total, page: pg, limit: lim }
+	});
 };
-
 export const updateOrderStatus = async (req, res) => {
 	const { id } = req.params;
 	const { status } = req.body;
@@ -150,13 +183,18 @@ export const updateOrderStatus = async (req, res) => {
 	const order = await Order.findById(id);
 	if (!order) throw createError(404, "Đơn hàng không tồn tại");
 
-	// only admin can change status (except owner cancelling pending)
-	if (!req.user || !req.user.isAdmin) throw createError(403, "Chỉ admin mới thay đổi trạng thái đơn hàng");
+	// Kiểm tra role
+	const isAdmin = req.user && req.user.role === "admin";
+	if (!isAdmin) throw createError(403, "Chỉ admin mới thay đổi trạng thái đơn hàng");
 
 	order.status = status;
 	await order.save();
 
-	return res.success(order, "Cập nhật trạng thái đơn hàng", 200);
+	return res.status(200).json({ 
+		success: true, 
+		message: "Cập nhật trạng thái đơn hàng", 
+		data: order 
+	});
 };
 
 export const cancelOrder = async (req, res) => {
@@ -164,11 +202,14 @@ export const cancelOrder = async (req, res) => {
 	const order = await Order.findById(id);
 	if (!order) throw createError(404, "Đơn hàng không tồn tại");
 
-	const userId = req.user && req.user.userId;
+	// Lấy userId từ req.user._id
+	const userId = req.user && req.user._id;
+	const isAdmin = req.user && req.user.role === "admin";
+	
 	// owner can cancel only if pending, otherwise admin can cancel
 	if (String(order.user_id) === String(userId)) {
 		if (order.status !== "pending") throw createError(400, "Không thể huỷ đơn ở trạng thái hiện tại");
-	} else if (!req.user || !req.user.isAdmin) {
+	} else if (!isAdmin) {
 		throw createError(403, "Không có quyền huỷ đơn hàng này");
 	}
 
@@ -180,17 +221,26 @@ export const cancelOrder = async (req, res) => {
 		await Product.findByIdAndUpdate(it.product_id, { $inc: { quantity: it.quantity } });
 	}
 
-	return res.success(order, "Đơn hàng đã huỷ", 200);
+	return res.status(200).json({ 
+		success: true, 
+		message: "Đơn hàng đã huỷ", 
+		data: order 
+	});
 };
 
 export const payOrder = async (req, res) => {
 	const { id } = req.params;
-	const userId = req.user && req.user.userId;
+	// Lấy userId từ req.user._id
+	const userId = req.user && req.user._id;
+	const isAdmin = req.user && req.user.role === "admin";
+	
 	if (!userId) throw createError(401, "Chưa đăng nhập");
 
 	const order = await Order.findById(id);
 	if (!order) throw createError(404, "Order không tồn tại");
-	if (String(order.user_id) !== String(userId) && !req.user.isAdmin) throw createError(403, "Không có quyền thanh toán đơn này");
+	if (String(order.user_id) !== String(userId) && !isAdmin) {
+		throw createError(403, "Không có quyền thanh toán đơn này");
+	}
 	if (order.status !== "pending") throw createError(400, "Chỉ được thanh toán đơn hàng ở trạng thái pending");
 
 	if (!stripe) throw createError(500, "Stripe chưa cấu hình trên server");
@@ -213,49 +263,47 @@ export const payOrder = async (req, res) => {
 		cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-cancel`,
 		metadata: { orderId: order._id.toString() },
 	});
-
-	order.payment.method = "stripe";
+order.payment.method = "stripe";
 	order.payment.transaction_id = session.id;
 	await order.save();
 
-	return res.success({ url: session.url, sessionId: session.id }, "Checkout session created", 200);
+	return res.status(200).json({ 
+		success: true, 
+		message: "Checkout session created", 
+		data: { url: session.url, sessionId: session.id }
+	});
 };
 
-// Create a Momo payment and return a payment URL
-// (removed Momo and ZaloPay helpers - reverted to original state)
 export const paymentWebhook = async (req, res) => {
 	// If Stripe is configured and a webhook secret provided, try to verify signature
 	const sig = req.headers && (req.headers["stripe-signature"] || req.headers["Stripe-Signature"]);
 	if (stripe && STRIPE_WEBHOOK_SECRET && sig) {
 		let event;
 		try {
-			// constructEvent expects the exact raw body bytes used to compute signature.
-			// Many setups expose the raw body; if not available, we attempt to recreate from JSON.
 			const payload = Buffer.from(JSON.stringify(req.body));
 			event = stripe.webhooks.constructEvent(payload, sig, STRIPE_WEBHOOK_SECRET);
 		} catch (err) {
 			return res.status(400).send(`Webhook signature verification failed: ${err.message}`);
 		}
 
-		// Handle checkout.session.completed
 		if (event.type === "checkout.session.completed") {
 			const session = event.data.object;
 			const orderId = session.metadata && session.metadata.orderId;
-			if (!orderId) return res.success({}, "No order metadata", 200);
+			if (!orderId) return res.status(200).json({ success: true, message: "No order metadata" });
+			
 			const order = await Order.findById(orderId);
-			if (!order) return res.success({}, "Order not found", 200);
-			if (order.payment.status === "paid") return res.success(order, "Already paid", 200);
+			if (!order) return res.status(200).json({ success: true, message: "Order not found" });
+			if (order.payment.status === "paid") return res.status(200).json({ success: true, message: "Already paid" });
 
 			order.payment.status = "paid";
 			order.payment.transaction_id = session.payment_intent || session.id;
 			order.status = "confirmed";
 			await order.save();
 
-			return res.success(order, "Stripe payment processed", 200);
+			return res.status(200).json({ success: true, message: "Stripe payment processed", data: order });
 		}
 
-		// Other Stripe events can be handled here
-		return res.success({}, "Event received", 200);
+		return res.status(200).json({ success: true, message: "Event received" });
 	}
 
 	// Fallback: simple stub for non-Stripe providers or manual calls
@@ -270,7 +318,7 @@ export const paymentWebhook = async (req, res) => {
 	if (status === "paid") order.status = "confirmed";
 	await order.save();
 
-	return res.success(order, "Webhook xử lý xong", 200);
+	return res.status(200).json({ success: true, message: "Webhook xử lý xong", data: order });
 };
 
 export default {
@@ -280,5 +328,6 @@ export default {
 	getAllOrders,
 	updateOrderStatus,
 	cancelOrder,
+	payOrder,
 	paymentWebhook,
 };
