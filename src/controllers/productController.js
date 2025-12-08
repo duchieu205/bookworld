@@ -2,6 +2,9 @@ import Product from "../models/Product.js";
 import createError from "../utils/createError.js";
 import mongoose from "mongoose";
 import Variant from "../models/variant.js";
+import Category from "../models/Category.js";
+
+
 // Create a new product
 export const createProduct = async (req, res) => {
 	const body = req.body;
@@ -80,33 +83,36 @@ export const getProducts = async (req, res) => {
 };
 
 // Get product detail by id
-export const getProductById = async (req, res) => {
-	const { id } = req.params;
+export const getProductById = async (req, res, next) => {
+  const { id } = req.params;
 
-	// Kiểm tra ID hợp lệ
-	if (!mongoose.Types.ObjectId.isValid(id)) {
-		return res.status(400).json({ success: false, message: "Invalid product ID" });
-	}
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid product ID" });
+  }
 
-	
-	const [product, variant] = await Promise.all([
-		Product.findById(id),
-		Variant.find({ product_id: id }).populate("product_id")
-	]);
+  try {
+    // Lấy product và populate category
+    const product = await Product.findById(id).populate("category"); 
 
-	if (!product) throw createError(404, "Product not found");
-	if (!variant) throw createError(404, "Variants not found");
+    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
+    // Lấy variants của sản phẩm
+    const variant = await Variant.find({ product_id: id });
 
-	return res.success(
-		{
-			product,
-			variant,
-		},
-		"Product with variants retrieved",
-		200
-	);
+    return res.status(200).json({
+      success: true,
+      message: "Product with variants and category retrieved",
+      data: {
+        product,
+        variant,
+        category: product.category
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
 };
+
 
 // Update product
 export const updateProduct = async (req, res) => {
