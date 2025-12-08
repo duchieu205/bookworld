@@ -1,7 +1,7 @@
 import Product from "../models/Product.js";
 import createError from "../utils/createError.js";
 import mongoose from "mongoose";
-
+import Variant from "../models/variant.js";
 // Create a new product
 export const createProduct = async (req, res) => {
 	const body = req.body;
@@ -83,14 +83,29 @@ export const getProducts = async (req, res) => {
 export const getProductById = async (req, res) => {
 	const { id } = req.params;
 
-	// Kiểm tra id hợp lệ
+	// Kiểm tra ID hợp lệ
 	if (!mongoose.Types.ObjectId.isValid(id)) {
 		return res.status(400).json({ success: false, message: "Invalid product ID" });
 	}
 
-	const product = await Product.findById(id);
+	
+	const [product, variant] = await Promise.all([
+		Product.findById(id),
+		Variant.find({ product_id: id }).populate("product_id")
+	]);
+
 	if (!product) throw createError(404, "Product not found");
-	return res.success(product, "Product retrieved", 200);
+	if (!variant) throw createError(404, "Variants not found");
+
+
+	return res.success(
+		{
+			product,
+			variant,
+		},
+		"Product with variants retrieved",
+		200
+	);
 };
 
 // Update product

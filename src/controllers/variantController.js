@@ -8,11 +8,12 @@
 
 		// Validate product exists
 		if (!body.product) throw createError(400, "product is required");
+		body.product_id = new mongoose.Types.ObjectId(body.product_id);
 		const product = await Product.findById(body.product);
 		if (!product) throw createError(404, "Product not found");
 
 		// Validate type
-		const allowed = ["hardcover", "paperback"];
+		const allowed = ["Bìa cứng", "Bìa mềms"];
 		if (!body.type || !allowed.includes(body.type)) {
 			throw createError(400, `type is required and must be one of: ${allowed.join(",")}`);
 		}
