@@ -6,9 +6,6 @@ const orderItemSchema = new Schema(
 	{
 		product_id: { type: Schema.Types.ObjectId, ref: "Product", required: true },
 		variant_id: { type: Schema.Types.ObjectId, ref: "Variant" },
-		name: { type: String },
-		price: { type: Number, required: true, default: 0 },
-		quantity: { type: Number, required: true, default: 1 },
 	},
 	{ _id: false }
 );

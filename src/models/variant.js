@@ -2,14 +2,14 @@
 
 	const variantSchema = new mongoose.Schema(
 		{
-			product: {
+			product_id: {
 				type: mongoose.Schema.Types.ObjectId,
 				ref: "Product",
 				required: true,
 			},
 			type: {
 				type: String,
-				enum: ["hardcover", "paperback"],
+				enum: ["Bìa cứng", "Bìa mềm"],
 				required: true,
 			},
 			price: {
@@ -22,13 +22,9 @@
 				default: "",
 				trim: true,
 			},
-			stock: {
+			quantity: {
 				type: Number,
 				default: 0,
-			},
-			images: {
-				type: [String],
-				default: [],
 			},
 			status: {
 				type: String,

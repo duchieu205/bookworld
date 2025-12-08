@@ -12,42 +12,42 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    namxuatban: {
+      type: Number,
+      required: true
+    },
+    nhaxuatban: {
+      type: String,
+      required: true
+    },
+    sotrang: {
+      type: Number,
+      required: true
+    },
     slug: {
       type: String,
       unique: true,
       trim: true,
     },
-
     description: {
       type: String,
       default: "",
     },
-
-    price: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-
     images: {
       type: [String],
       default: [],
     },
-
-    quantity: {
-      type: Number,
-      default: 0,
-    },
-
     category: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
     },
-
-    status: {
-      type: String,
-      enum: ["active", "inactive"],
-      default: "active",
+    weight: {
+      type: Number, // gram
+      default: 0
+    },
+    size: {
+      type: String, // ví dụ: "20 x 13 x 2 cm"
+      default: ""
     },
 
     sku: {
