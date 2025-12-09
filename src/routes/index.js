@@ -11,6 +11,7 @@ import orderRoutes from "./order.js";
 import variantRoutes from "./variant.js";
 import cartRoutes from "./cart.js";
 import authRoutes from "./auth.js";
+import analyticsRoutes from "./analytics.js";
 
 const routes = Router();
 
@@ -22,6 +23,7 @@ routes.use("/orders", orderRoutes);
 routes.use("/variants", variantRoutes);
 routes.use("/cart", cartRoutes);
 routes.use("/auth", authRoutes);
+routes.use("/analytics", analyticsRoutes);
 
 
 
