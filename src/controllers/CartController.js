@@ -1,14 +1,25 @@
- import Cart from "../models/Cart.js";
+ import { populate } from "dotenv";
+import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import createError from "../utils/createError.js";
 
 export const getCart = async (req, res) => {
-    const userId = req.user && (req.user._id || req.user.userId);
-    if (!userId) throw createError(401, "Chưa đăng nhập");
+  const userId = req.user && (req.user._id || req.user.userId);
+  if (!userId) throw createError(401, "Chưa đăng nhập");
 
-    const cart = await Cart.findOne({ user_id: userId }).populate("items.product_id", "name price images quantity");
-    return res.success(cart || { items: [] }, "Lấy giỏ hàng thành công", 200);
+  const cart = await Cart.findOne({ user_id: userId })
+    .populate({
+      path: "items.product_id",
+      model: "Product"
+    })
+    .populate({
+      path: "items.variant_id",
+      model: "Variant",
+    });
+
+  return res.success(cart || { items: [] }, "Lấy giỏ hàng thành công", 200);
 };
+
 
 export const addItem = async (req, res) => {
     const userId = req.user && (req.user._id || req.user.userId);
@@ -26,7 +37,14 @@ export const addItem = async (req, res) => {
     let cart = await Cart.findOne({ user_id: userId });
     if (!cart) {
         cart = await Cart.create({ user_id: userId, items: [{ product_id, variant_id, quantity: qty }] });
-        const populated = await cart.populate("items.product_id", "name price images quantity");
+        const populated = await cart.populate({
+                path: "items.product_id",
+                model: "Product"
+                })
+                .populate({
+                path: "items.variant_id",
+                model: "Variant",
+                });;;
         return res.success(populated, "Đã thêm vào giỏ hàng", 201);
     }
 
@@ -39,7 +57,14 @@ export const addItem = async (req, res) => {
     }
 
     await cart.save();
-    const populated = await Cart.findById(cart._id).populate("items.product_id", "name price images quantity");
+    const populated = await Cart.findById(cart._id).populate({
+      path: "items.product_id",
+      model: "Product"
+    })
+    .populate({
+      path: "items.variant_id",
+      model: "Variant",
+    });;
     return res.success(populated, "Đã cập nhật giỏ hàng", 200);
 };
 
@@ -68,7 +93,14 @@ export const updateItem = async (req, res) => {
     }
 
     await cart.save();
-    const populated = await Cart.findById(cart._id).populate("items.product_id", "name price images quantity");
+    const populated = await Cart.findById(cart._id).populate({
+      path: "items.product_id",
+      model: "Product"
+    })
+    .populate({
+      path: "items.variant_id",
+      model: "Variant",
+    });;
     return res.success(populated, "Đã cập nhật giỏ hàng", 200);
 };
 
@@ -87,7 +119,14 @@ export const removeItem = async (req, res) => {
     if (cart.items.length === before) throw createError(404, "Sản phẩm trong giỏ không tồn tại");
 
     await cart.save();
-    const populated = await Cart.findById(cart._id).populate("items.product_id", "name price images quantity");
+    const populated = await Cart.findById(cart._id).populate({
+      path: "items.product_id",
+      model: "Product"
+    })
+    .populate({
+      path: "items.variant_id",
+      model: "Variant",
+    });;
     return res.success(populated, "Đã xóa sản phẩm khỏi giỏ hàng", 200);
 };
 
