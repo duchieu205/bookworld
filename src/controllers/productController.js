@@ -73,8 +73,8 @@ export const getProducts = async (req, res) => {
 	const items = await Product.find(query)
 		.skip((pageNum - 1) * lim)
 		.limit(lim)
-		.sort({ createdAt: -1 });
-
+		.sort({ createdAt: -1 })
+		.populate("category");
 	return res.success(
 		{ items, total, page: pageNum, limit: lim },
 		"Products retrieved",
