@@ -12,7 +12,7 @@ import variantRoutes from "./variant.js";
 import cartRoutes from "./cart.js";
 import authRoutes from "./auth.js";
 import analyticsRoutes from "./analytics.js";
-
+import inforUserRoutes from "./infoUser.js"
 const routes = Router();
 
 // API resource routes
@@ -24,7 +24,7 @@ routes.use("/variants", variantRoutes);
 routes.use("/cart", cartRoutes);
 routes.use("/auth", authRoutes);
 routes.use("/analytics", analyticsRoutes);
-
+routes.use("/me", inforUserRoutes);
 
 
 

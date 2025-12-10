@@ -3,7 +3,6 @@ import express from "express";
 import { body } from "express-validator";
 import * as authController from "../controllers/authController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
-import bcrypt from "bcrypt";
 import User from "../models/User.js";
 const router = express.Router();
 
@@ -30,7 +29,7 @@ const router = express.Router();
     router.get('/me', authMiddleware.verifyToken ,authController.getUserId);
     router.get('/allUser', authMiddleware.verifyToken ,authController.getAllUser);
 
-
+    
 
 
 export default router;
