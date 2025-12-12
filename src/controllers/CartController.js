@@ -10,7 +10,11 @@ export const getCart = async (req, res) => {
   const cart = await Cart.findOne({ user_id: userId })
     .populate({
       path: "items.product_id",
-      model: "Product"
+      model: "Product",
+      populate: {
+        path: "category",
+        model: "Category"
+      }
     })
     .populate({
       path: "items.variant_id",
@@ -129,6 +133,39 @@ export const removeItem = async (req, res) => {
     });;
     return res.success(populated, "Đã xóa sản phẩm khỏi giỏ hàng", 200);
 };
+
+export const clearSelectedItems = async (req, res) => {
+  const userId = req.user._id;
+  const { items } = req.body;
+
+  if (!Array.isArray(items) || items.length === 0)
+    throw createError(400, "Danh sách không hợp lệ");
+
+  // Lấy cart mà **chưa populate**
+  const cart = await Cart.findOne({ user_id: userId });
+  if (!cart) throw createError(404, "Giỏ hàng không tồn tại");
+
+  // Xóa dựa trên ObjectId gốc
+  cart.items = cart.items.filter(cartItem => {
+    return !items.some(sel => 
+      cartItem.product_id.equals(sel.product_id) &&
+      cartItem.variant_id?.equals(sel.variant_id)
+    );
+  });
+
+  await cart.save();
+
+  // Populate sau khi xóa
+  const populated = await Cart.findById(cart._id)
+    .populate("items.product_id")
+    .populate("items.variant_id");
+
+  return res.success(populated, "Đã xóa các sản phẩm đã chọn", 200);
+};
+
+
+
+
 
 export const clearCart = async (req, res) => {
     const userId = req.user && (req.user._id || req.user.userId);

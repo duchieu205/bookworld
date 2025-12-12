@@ -6,6 +6,7 @@ const orderItemSchema = new Schema(
 	{
 		product_id: { type: Schema.Types.ObjectId, ref: "Product", required: true },
 		variant_id: { type: Schema.Types.ObjectId, ref: "Variant" },
+		quantity: {type: Number, required: true, min: 1}
 	},
 	{ _id: false }
 );

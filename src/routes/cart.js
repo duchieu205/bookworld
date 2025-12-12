@@ -6,6 +6,7 @@ import {
 	updateItem,
 	removeItem,
 	clearCart,
+	clearSelectedItems
 } from "../controllers/CartController.js";
 import handleAsync from "../utils/handleAsync.js";
 
@@ -16,7 +17,7 @@ router.get("/", authMiddleware.verifyToken, handleAsync(getCart));
 
 // Add item to cart
 router.post("/items", authMiddleware.verifyToken, handleAsync(addItem));
-
+router.post("/items/clear-selected",authMiddleware.verifyToken, handleAsync(clearSelectedItems));
 // Update item quantity (or remove if quantity <= 0)
 router.put("/items/:productId", authMiddleware.verifyToken, handleAsync(updateItem));
 

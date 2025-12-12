@@ -1,5 +1,6 @@
 import Order from "../models/order.js";
 import Product from "../models/Product.js";
+import Variant from "../models/variant.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
@@ -16,95 +17,99 @@ export const createOrder = async (req, res) => {
 
 	const { items: bodyItems, shipping_address = {}, shipping_fee = 0, note = "", discountCode } = req.body;
 
-	// Build items: prefer supplied items, otherwise use cart
+	if (!Array.isArray(bodyItems) || bodyItems.length === 0)
+		throw createError(400, "Không có sản phẩm để đặt hàng");
+
+	// Validate items + tính giá theo biến thể
 	let items = [];
-	if (Array.isArray(bodyItems) && bodyItems.length > 0) {
-		items = bodyItems.map((it) => ({
+	let subtotal = 0;
+
+	for (const it of bodyItems) {
+
+		if (!it.product_id) throw createError(400, "Thiếu product_id");
+		if (!it.variant_id) throw createError(400, "Thiếu variant_id");
+		if (!it.quantity) throw createError(400, "Thiếu quantity");
+
+		const variant = await Variant.findById(it.variant_id);
+		if (!variant) throw createError(404, `Biến thể không tồn tại (${it.variant_id})`);
+
+		if (String(variant.product_id) !== String(it.product_id)) {
+			throw createError(400, "Biến thể không thuộc sản phẩm này");
+}
+		if (variant.quantity < it.quantity) {
+			throw createError(400, `Biến thể '${variant.type}' không đủ số lượng`);
+		}
+
+		subtotal += variant.price * it.quantity;
+
+		items.push({
 			product_id: it.product_id,
 			variant_id: it.variant_id,
-			name: it.name,
-			price: Number(it.price || 0),
-			quantity: Number(it.quantity || 1),
-			image: it.image || "" // them image
-		}));
-	} else {
-		const cart = await Cart.findOne({ user_id: userId }).populate("items.product_id");
-		if (!cart || !cart.items || cart.items.length === 0) throw createError(400, "Giỏ hàng trống");
-		items = await Promise.all(
-			cart.items.map(async (it) => {
-				const prod = await Product.findById(it.product_id);
-				return {
-					product_id: it.product_id,
-					variant_id: it.variant_id,
-					name: prod ? prod.name : "",
-					price: prod ? prod.price : 0,
-					quantity: it.quantity,
-					image: prod && prod.images ? prod.images[0] : ""
-				};
-			})
-		);
+			quantity: it.quantity
+		});
 	}
 
-	if (!items || items.length === 0) throw createError(400, "Không có sản phẩm để đặt hàng");
-
-	// Validate inventory and compute subtotal
-	let subtotal = 0;
-	for (const it of items) {
-		const prod = await Product.findById(it.product_id);
-		if (!prod) throw createError(404, `Sản phẩm không tồn tại: ${it.product_id}`);
-		if (typeof prod.quantity === "number" && prod.quantity < it.quantity) throw createError(400, `Sản phẩm '${prod.name}' không đủ số lượng`);
-		subtotal += Number(it.price || prod.price || 0) * Number(it.quantity || 0);
-	}
-
-	// Apply discount if provided (simple per-product discount lookup by code)
+	// Discount
 	let discountAmount = 0;
 	if (discountCode) {
-		// try match discounts for items
 		for (const it of items) {
-			const d = await Discount.findOne({ code: discountCode, productID: String(it.product_id), status: "active" });
+			const variant = await Variant.findById(it.variant_id);
+			const d = await Discount.findOne({
+				code: discountCode,
+				productID: String(it.product_id),
+				status: "active"
+			});
+
 			if (d) {
-				const val = Number(d.discount_value || 0);
+				const price = variant.price * it.quantity;
 				if (d.discount_type === "%") {
-					discountAmount += (it.price * it.quantity) * (val / 100);
+					discountAmount += price * (Number(d.discount_value) / 100);
 				} else {
-					discountAmount += val;
+					discountAmount += Number(d.discount_value);
 				}
 			}
 		}
 	}
 
-	const total = Math.max(0, subtotal + Number(shipping_fee || 0) - discountAmount);
+	const total = Math.max(0, subtotal + Number(shipping_fee) - discountAmount);
 
+	// Tạo order
 	const order = await Order.create({
-user_id: userId,
+		user_id: userId,
 		items,
 		subtotal,
-		shipping_fee: Number(shipping_fee || 0),
+		shipping_fee,
 		discount: { code: discountCode || "", amount: discountAmount },
 		total,
 		shipping_address,
 		note,
-		status: "pending", // status mặc định
+		status: "pending",
 		payment: {
 			method: req.body.payment?.method || "cod",
 			status: req.body.payment?.status || "pending"
 		}
 	});
 
-	// decrement product stocks
+	// Trừ kho biến thể
 	for (const it of items) {
-		await Product.findByIdAndUpdate(it.product_id, { $inc: { quantity: -Math.max(0, it.quantity) } });
-	}
+    const updated = await Variant.findOneAndUpdate(
+        { _id: it.variant_id, quantity: { $gte: it.quantity } },
+        { $inc: { quantity: -it.quantity } },
+        { new: true }
+    );
 
-	// Optionally clear cart if we built from cart
-	if (!Array.isArray(bodyItems) || bodyItems.length === 0) {
-		await Cart.findOneAndDelete({ user_id: userId });
-	}
+    if (!updated) {
+        throw createError(
+            400,
+            `Biến thể ${it.variant_id} không đủ số lượng để trừ kho`
+        );
+    }
+}
 
-	return res.status(201).json({ 
-		success: true, 
-		message: "Đơn hàng đã tạo", 
-		data: order 
+	return res.status(201).json({
+		success: true,
+		message: "Đơn hàng đã tạo",
+		data: order
 	});
 };
 
@@ -144,7 +149,8 @@ export const getUserOrders = async (req, res) => {
 		.skip((pg - 1) * lim)
 		.limit(lim)
 		.sort({ createdAt: -1 })
-		.populate("items.product_id", "name price images");
+		.populate("items.product_id", "name price images")
+		.populate("items.variant_id");
 
 	return res.status(200).json({ 
 		success: true, 
