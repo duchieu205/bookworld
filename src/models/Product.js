@@ -42,11 +42,11 @@ const productSchema = new mongoose.Schema(
       ref: "Category",
     },
     weight: {
-      type: Number, // gram
+      type: Number, 
       default: 0
     },
     size: {
-      type: String, // ví dụ: "20 x 13 x 2 cm"
+      type: String, 
       default: ""
     },
 
@@ -54,6 +54,21 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    
+    quantity: {
+      type: Number,
+      default:0,
+    },
+    status: {
+  type: Boolean,
+  default: true, 
+},
+price: {
+  type: Number,
+  required: true,
+  default: 0
+},
+    
   },
   {
     timestamps: true,
