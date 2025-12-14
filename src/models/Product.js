@@ -8,6 +8,7 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    
     author: {
       type: String,
       required: true
@@ -55,19 +56,7 @@ const productSchema = new mongoose.Schema(
       default: "",
     },
     
-    quantity: {
-      type: Number,
-      default:0,
-    },
-    status: {
-  type: Boolean,
-  default: true, 
-},
-price: {
-  type: Number,
-  required: true,
-  default: 0
-},
+  
     
   },
   {
