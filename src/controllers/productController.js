@@ -5,52 +5,55 @@ import Variant from "../models/variant.js";
 import Category from "../models/Category.js";
 
 
-// Create a new product
 export const createProduct = async (req, res) => {
-	const body = req.body;
+  const body = req.body;
 
-	// Log body để debug
-	console.log("Create product body:", body);
+  console.log("Create product body:", body);
 
-	if (!body.slug && body.name) {
-		let slug = body.name
-			.toLowerCase()
-			.replace(/[^\w]+/g, "-")
-			.replace(/^-+|-+$/g, "");
+  if (!body.slug && body.name) {
+    let slug = body.name
+      .toLowerCase()
+      .replace(/[^\w]+/g, "-")
+      .replace(/^-+|-+$/g, "");
 
-		// Kiểm tra trùng
-		const existing = await Product.findOne({ slug });
-		if (existing) {
-			slug += '-' + Date.now(); // thêm timestamp tránh trùng
-		}
+    const existing = await Product.findOne({ slug });
+    if (existing) {
+      slug += '-' + Date.now();
+    }
+    body.slug = slug;
+  }
 
-		body.slug = slug;
-		}
+  if (body.category && !mongoose.Types.ObjectId.isValid(body.category)) {
+    return res.status(400).json({ success: false, message: "Invalid category ID" });
+  }
 
+  body.quantity = Number(body.quantity || 0);
+  body.status = body.status ?? true;
+  body.price = Number(body.price || 0);
+  body.weight = Number(body.weight || 0);
+  body.namxuatban = Number(body.namxuatban || 0);
+  body.sotrang = Number(body.sotrang || 0);
+  body.images = body.images || [];
 
-	// Validate category ObjectId nếu có
-	if (body.category && !mongoose.Types.ObjectId.isValid(body.category)) {
-		return res.status(400).json({ success: false, message: "Invalid category ID" });
-	}
-
-	try {
-		const product = await Product.create(body);
-		return res.success(product, "Product created", 201);
-	} catch (err) {
-		// Handle duplicate key just in case of race conditions
-		if (err && err.code === 11000) {
-			return res.status(409).json({ success: false, message: "Duplicate product slug" });
-		}
-		console.error(err);
-
-		// Nếu lỗi do CastError (ObjectId sai) hoặc ValidationError
-		if (err.name === "CastError" || err.name === "ValidationError") {
-			return res.status(400).json({ success: false, message: err.message });
-		}
-
-		return res.status(500).json({ success: false, message: "Server error" });
-	}
+  try {
+    const product = await Product.create(body);
+    return res.status(201).json({
+      success: true,
+      message: "Product created",
+      data: product
+    });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(409).json({ success: false, message: "Duplicate product slug" });
+    }
+    console.error(err);
+    if (err.name === "CastError" || err.name === "ValidationError") {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
 };
+
 
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {

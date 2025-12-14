@@ -17,11 +17,11 @@
 				required: true,
 				default: 0,
 			},
-			sku: {
+			 sku: {
 				type: String,
-				default: "",
-				trim: true,
-			},
+				unique: true,
+				uppercase: true,
+				},
 			quantity: {
 				type: Number,
 				default: 0,
@@ -31,6 +31,10 @@
 				enum: ["active", "inactive"],
 				default: "active",
 			},
+			   images: {
+				type: [String],
+				default: [],
+				},
 		},
 		{
 			timestamps: true,

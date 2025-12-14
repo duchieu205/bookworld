@@ -8,6 +8,7 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    
     author: {
       type: String,
       required: true
@@ -42,11 +43,11 @@ const productSchema = new mongoose.Schema(
       ref: "Category",
     },
     weight: {
-      type: Number, // gram
+      type: Number, 
       default: 0
     },
     size: {
-      type: String, // ví dụ: "20 x 13 x 2 cm"
+      type: String, 
       default: ""
     },
 
@@ -54,6 +55,9 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    
+  
+    
   },
   {
     timestamps: true,
