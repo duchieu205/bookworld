@@ -24,12 +24,12 @@ const orderSchema = new Schema(
 		total: { type: Number, required: true, default: 0 },
 		status: {
 			type: String,
-			enum: ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"],
-			default: "pending",
+			enum: ["Đã hủy","Chờ xử lý", "Đã xác nhận", "Đang chuẩn bị hàng", "Đang giao hàng", "Giao hàng thành công", "Trả hàng/Hoàn tiền"],
+			default: "Chờ xử lý",
 		},
 		payment: {
 			method: { type: String, default: "cod" },
-			status: { type: String, enum: ["pending", "paid", "failed"], default: "pending" },
+			status: { type: String, enum: ["Chưa thanh toán", "Đã thanh toán", "Thất bại"], default: "Chưa thanh toán" },
 			transaction_id: { type: String },
 		},
 		shipping_address: { type: Object, default: {} },

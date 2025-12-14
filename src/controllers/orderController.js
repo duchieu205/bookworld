@@ -83,13 +83,12 @@ export const createOrder = async (req, res) => {
 		total,
 		shipping_address,
 		note,
-		status: "pending",
+		status: "Chờ xử lý",
 		payment: {
 			method: req.body.payment?.method || "cod",
-			status: req.body.payment?.status || "pending"
+			status: req.body.payment?.status || "Chưa thanh toán"
 		}
 	});
-
 	// Trừ kho biến thể
 	for (const it of items) {
     const updated = await Variant.findOneAndUpdate(
@@ -181,6 +180,8 @@ export const getAllOrders = async (req, res) => {
 		data: { items, total, page: pg, limit: lim }
 	});
 };
+
+
 export const updateOrderStatus = async (req, res) => {
 	const { id } = req.params;
 	const { status } = req.body;
@@ -214,18 +215,29 @@ export const cancelOrder = async (req, res) => {
 	
 	// owner can cancel only if pending, otherwise admin can cancel
 	if (String(order.user_id) === String(userId)) {
-		if (order.status !== "pending") throw createError(400, "Không thể huỷ đơn ở trạng thái hiện tại");
+		if (order.status !== "Chờ xử lý") throw createError(400, "Không thể huỷ đơn ở trạng thái hiện tại");
 	} else if (!isAdmin) {
 		throw createError(403, "Không có quyền huỷ đơn hàng này");
 	}
 
-	order.status = "cancelled";
+	order.status = "Đã hủy";
+	order.note = req.body.note;
 	await order.save();
 
 	// restore stock
-	for (const it of order.items) {
-		await Product.findByIdAndUpdate(it.product_id, { $inc: { quantity: it.quantity } });
-	}
+	for (const item of order.items) {
+    if (item.variant_id) {
+      await Variant.findByIdAndUpdate(
+        item.variant_id,
+        { $inc: { quantity: item.quantity } }
+      );
+    } else {
+      await Product.findByIdAndUpdate(
+        item.product_id,
+        { $inc: { quantity: item.quantity } }
+      );
+    }
+  }
 
 	return res.status(200).json({ 
 		success: true, 

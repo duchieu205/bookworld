@@ -29,7 +29,7 @@ router.get("/:id", authMiddleware.verifyToken, getOrderById);
 router.put("/:id/status", authMiddleware.verifyToken, updateOrderStatus);
 
 // Cancel order (owner or admin)
-router.delete("/:id", authMiddleware.verifyToken, cancelOrder);
+router.put("/:id", authMiddleware.verifyToken, cancelOrder);
 
 // Start payment for an order (creates a checkout session / payment intent)
 router.post("/:id/pay", authMiddleware.verifyToken, payOrder);
