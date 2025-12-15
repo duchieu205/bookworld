@@ -47,12 +47,12 @@ app.use(formatResponseSuccess);
 app.use(jsonValid);
 
 // Middleware xửa lý lỗi chung
-app.use(errorHandler);
 app.use("/", authRoutes);
 app.use("/api", routes);
 
 // Middleware xử lý route không tồn tại
 app.use(notFoundHandler);
+app.use(errorHandler);
 
 const server = app.listen(PORT, () => {
   console.log(`Server is running on: http://localhost:${PORT}/api`);

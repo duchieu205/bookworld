@@ -2,7 +2,7 @@
 import Cart from "../models/Cart.js";
 import Product from "../models/Product.js";
 import createError from "../utils/createError.js";
-
+import Variant from "../models/variant.js"
 export const getCart = async (req, res) => {
   const userId = req.user && (req.user._id || req.user.userId);
   if (!userId) throw createError(401, "Chưa đăng nhập");
@@ -26,87 +26,135 @@ export const getCart = async (req, res) => {
 
 
 export const addItem = async (req, res) => {
-    const userId = req.user && (req.user._id || req.user.userId);
-    if (!userId) throw createError(401, "Chưa đăng nhập");
+  const userId = req.user && (req.user._id || req.user.userId);
+  if (!userId) throw createError(401, "Chưa đăng nhập");
 
-    
-    const { product_id, variant_id = null, quantity = 1 } = req.body;
-    if (!product_id) throw createError(400, "Thiếu product_id");
-    const qty = Math.max(1, parseInt(quantity, 10) || 1);
+  const { product_id, variant_id, quantity = 1 } = req.body;
+  if (!product_id) throw createError(400, "Thiếu product_id");
 
-    const product = await Product.findById(product_id);
-    if (!product) throw createError(404, "Sản phẩm không tồn tại");
-    if (typeof product.quantity === "number" && product.quantity < qty) throw createError(400, "Sản phẩm không đủ số lượng");
+  const qty = Math.max(1, parseInt(quantity, 10) || 1);
 
-    let cart = await Cart.findOne({ user_id: userId });
-    if (!cart) {
-        cart = await Cart.create({ user_id: userId, items: [{ product_id, variant_id, quantity: qty }] });
-        const populated = await cart.populate({
-                path: "items.product_id",
-                model: "Product"
-                })
-                .populate({
-                path: "items.variant_id",
-                model: "Variant",
-                });;;
-        return res.success(populated, "Đã thêm vào giỏ hàng", 201);
+  if (!product_id) throw createError(400, "Thiếu product_id");
+  if (!variant_id) throw createError(400, "Thiếu variant_id");
+
+
+  const variant = await Variant.findById(variant_id);
+  if (!variant) throw createError(404, "Variant không tồn tại");
+  if (variant.quantity < quantity) {
+    throw createError(400, `Chỉ còn ${variant.quantity} sản phẩm`);
+  }
+
+  let cart = await Cart.findOne({ user_id: userId });
+
+  // Nếu chưa có cart
+  if (!cart) {
+    if (variant && qty > variant.quantity) {
+      throw createError(400, "Số lượng vượt quá tồn kho");
     }
 
-    // find existing item (match product_id and variant_id)
-    const idx = cart.items.findIndex((it) => String(it.product_id) === String(product_id) && String(it.variant_id || "") === String(variant_id || ""));
-    if (idx >= 0) {
-        cart.items[idx].quantity = (cart.items[idx].quantity || 0) + qty;
-    } else {
-        cart.items.push({ product_id, variant_id, quantity: qty });
+    cart = await Cart.create({
+      user_id: userId,
+      items: [{ product_id, variant_id, quantity: qty }],
+    });
+
+    const populated = await Cart.findById(cart._id)
+      .populate("items.product_id")
+      .populate("items.variant_id");
+
+    return res.success(populated, "Đã thêm vào giỏ hàng", 201);
+  }
+
+  // Tìm item đã tồn tại
+  const idx = cart.items.findIndex(
+    (it) =>
+      String(it.product_id) === String(product_id) &&
+      String(it.variant_id || "") === String(variant_id || "")
+  );
+
+  if (idx >= 0) {
+    const newQty = cart.items[idx].quantity + qty;
+
+    if (variant && newQty > variant.quantity) {
+      throw createError(
+        400,
+        `Chỉ còn ${variant.quantity} sản phẩm trong kho`
+      );
     }
 
-    await cart.save();
-    const populated = await Cart.findById(cart._id).populate({
-      path: "items.product_id",
-      model: "Product"
-    })
-    .populate({
-      path: "items.variant_id",
-      model: "Variant",
-    });;
-    return res.success(populated, "Đã cập nhật giỏ hàng", 200);
+    cart.items[idx].quantity = newQty;
+  } else {
+    if (variant && qty > variant.quantity) {
+      throw createError(
+        400,
+        `Chỉ còn ${variant.quantity} sản phẩm trong kho`
+      );
+    }
+
+    cart.items.push({ product_id, variant_id, quantity: qty });
+  }
+
+  await cart.save();
+
+  const populated = await Cart.findById(cart._id)
+    .populate("items.product_id")
+    .populate("items.variant_id");
+
+  return res.success(populated, "Đã cập nhật giỏ hàng", 200);
 };
+
 
 export const updateItem = async (req, res) => {
-    const userId = req.user && (req.user._id || req.user.userId);
-    if (!userId) throw createError(401, "Chưa đăng nhập");
+  const userId = req.user && (req.user._id || req.user.userId);
+  if (!userId) throw createError(401, "Chưa đăng nhập");
 
-    const { productId } = req.params;
-    const { variant_id = null, quantity } = req.body;
-    if (typeof quantity === "undefined") throw createError(400, "Thiếu quantity mới");
-    const qty = parseInt(quantity, 10);
+  const { productId } = req.params;
+  const { variant_id = null, quantity } = req.body;
 
-    const cart = await Cart.findOne({ user_id: userId });
-    if (!cart) throw createError(404, "Giỏ hàng không tồn tại");
+  if (typeof quantity === "undefined")
+    throw createError(400, "Thiếu quantity mới");
 
-    const idx = cart.items.findIndex((it) => String(it.product_id) === String(productId) && String(it.variant_id || "") === String(variant_id || ""));
-    if (idx === -1) throw createError(404, "Sản phẩm trong giỏ không tồn tại");
+  const qty = parseInt(quantity, 10);
 
-    if (qty <= 0) {
-        cart.items.splice(idx, 1);
-    } else {
-        const product = await Product.findById(productId);
-        if (!product) throw createError(404, "Sản phẩm không tồn tại");
-        if (typeof product.quantity === "number" && product.quantity < qty) throw createError(400, "Sản phẩm không đủ số lượng");
-        cart.items[idx].quantity = qty;
+  const cart = await Cart.findOne({ user_id: userId });
+  if (!cart) throw createError(404, "Giỏ hàng không tồn tại");
+
+  const idx = cart.items.findIndex(
+    (it) =>
+      String(it.product_id) === String(productId) &&
+      String(it.variant_id || "") === String(variant_id || "")
+  );
+
+  if (idx === -1)
+    throw createError(404, "Sản phẩm trong giỏ không tồn tại");
+
+  // qty <= 0 → xoá
+  if (qty <= 0) {
+    cart.items.splice(idx, 1);
+  } else {
+    if (variant_id) {
+      const variant = await Variant.findById(variant_id);
+      if (!variant) throw createError(404, "Variant không tồn tại");
+
+      if (qty > variant.quantity) {
+        throw createError(
+          400,
+          `Chỉ còn ${variant.quantity} sản phẩm trong kho`
+        );
+      }
     }
 
-    await cart.save();
-    const populated = await Cart.findById(cart._id).populate({
-      path: "items.product_id",
-      model: "Product"
-    })
-    .populate({
-      path: "items.variant_id",
-      model: "Variant",
-    });;
-    return res.success(populated, "Đã cập nhật giỏ hàng", 200);
+    cart.items[idx].quantity = qty;
+  }
+
+  await cart.save();
+
+  const populated = await Cart.findById(cart._id)
+    .populate("items.product_id")
+    .populate("items.variant_id");
+
+  return res.success(populated, "Đã cập nhật giỏ hàng", 200);
 };
+
 
 export const removeItem = async (req, res) => {
     const userId = req.user && (req.user._id || req.user.userId);

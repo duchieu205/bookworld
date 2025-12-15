@@ -55,9 +55,6 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    
-  
-    
   },
   {
     timestamps: true,
