@@ -2,7 +2,8 @@ import express from "express";
 
 import { body } from "express-validator";
 import * as authController from "../controllers/authController.js";
-import authMiddleware from "../middlewares/authMiddleware.js";
+import authMiddleware, { verifyToken, requireAdmin } from "../middlewares/authMiddleware.js";
+
 import User from "../models/User.js";
 const router = express.Router();
 
@@ -26,8 +27,9 @@ const router = express.Router();
     authController.login
     );
 
+
     router.get('/me', authMiddleware.verifyToken ,authController.getUserId);
-    router.get('/allUser', authMiddleware.verifyToken ,authController.getAllUser);
+    router.get('/allUser', authMiddleware.verifyToken, requireAdmin ,authController.getAllUser);
 
     
 

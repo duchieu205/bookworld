@@ -1,6 +1,7 @@
 import { Router } from "express";
 import handleAsync from "../utils/handleAsync.js";
 import categoryController from "../controllers/categoryController.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
@@ -8,15 +9,15 @@ const router = Router();
 router.get("/", handleAsync(categoryController.getCategories));
 
 // Create category
-router.post("/", handleAsync(categoryController.createCategory));
+router.post("/", authMiddleware.requireAdmin, handleAsync(categoryController.createCategory));
 
 // Get category by id
 router.get("/:id", handleAsync(categoryController.getCategoryById));
 
 // Update category
-router.put("/:id", handleAsync(categoryController.updateCategory));
+router.put("/:id", authMiddleware.requireAdmin, handleAsync(categoryController.updateCategory));
 
 // Delete category
-router.delete("/:id", handleAsync(categoryController.deleteCategory));
+router.delete("/:id", authMiddleware.requireAdmin, handleAsync(categoryController.deleteCategory));
 
 export default router;

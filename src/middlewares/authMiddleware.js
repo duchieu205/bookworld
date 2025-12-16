@@ -40,7 +40,15 @@ export const authorize = (...roles) => {
   };
 };
 
+export const requireAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== "admin") {
+    return res.status(403).json({ message: "Chỉ admin mới được truy cập" });
+  }
+  next();
+};
+
+
 
 export default {
-  verifyToken, authorize
+  verifyToken, authorize, requireAdmin
 } 

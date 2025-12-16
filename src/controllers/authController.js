@@ -108,3 +108,49 @@ import User from "../models/User.js";
                     return res.status(500).json({ success: false, message: "Lấy thông tin user thất bại" });
                 };
         }   
+        export const adminLogin = async (req, res) => {
+            const errors = validationResult(req);
+            if (!errors.isEmpty())
+                return res.status(400).json({ errors: errors.array() });
+
+            const { email, password } = req.body;
+
+            try {
+                const user = await User.findOne({ email });
+                if (!user)
+                return res.status(400).json({ message: "Thông tin đăng nhập không đúng" });
+
+                if (user.role !== "admin") {
+                return res.status(403).json({ message: "Không có quyền truy cập admin" });
+                }
+
+                const isMatch = await bcrypt.compare(password, user.password);
+                if (!isMatch)
+                return res.status(400).json({ message: "Thông tin đăng nhập không đúng" });
+
+                const payload = {
+                userId: user._id,
+                role: user.role, // nên gắn role vào token
+                };
+
+                const token = jwt.sign(
+                payload,
+                process.env.JWT_SECRET,
+                { expiresIn: process.env.JWT_EXPIRES_IN }
+                );
+
+                return res.json({
+                token,
+                user: {
+                    _id: user._id,
+                    fullname: user.name,
+                    email: user.email,
+                    role: user.role,
+                },
+                message: "Đăng nhập admin thành công",
+                });
+            } catch (err) {
+                console.error(err);
+                return res.status(500).json({ message: "Lỗi server" });
+            }
+            };
