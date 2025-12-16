@@ -25,7 +25,7 @@ export const verifyToken = async (req, res, next) => {
     req.user = user; // Lưu full user -> dùng được role, email...
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Token không hợp lệ" });
+    return res.status(401).json({ message: "Token hết hạn hoặc không hợp lệ" });
   }
 };
 

@@ -76,23 +76,27 @@ export const updateInfo = async (req, res) => {
 
 
 export const getFavorites = async (req, res) => {
-    try {
-        const userId = req.user && (req.user._id || req.user.userId);
+  try {
+    const userId = req.user._id;
 
+    const favourite = await Favourite.findOne({ user_id: userId })
+      .populate("items.product_id"); 
 
-        const favorites = await Favourite.findOne({ user_id: userId })
-            .populate("items.product_id");
-           
+    if (!favourite) return res.json([]);
 
-        return res.status(200).json({
-            success: true,
-            data: favorites?.items || []
-        });
+    const result = favourite.items
+      .filter(item => item.product_id)
+      .map(item => ({
+        _id: item.product_id._id,
+        product: item.product_id
+      }));
 
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ message: "Server error" });
-    }
+    return res.status(200).json(result);
+
+  } catch (err) {
+    console.error("getFavorites error:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
 };
 
 
@@ -101,79 +105,67 @@ export const getFavorites = async (req, res) => {
 // POST - Thêm sản phẩm yêu thích
 // =========================
 export const addFavorite = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const { product_id } = req.body;
+  try {
+    const userId = req.user._id;
+    const { product_id } = req.body;
 
-        let favourite = await Favourite.findOne({ user_id: userId });
+    let favourite = await Favourite.findOne({ user_id: userId });
 
-        // Nếu user chưa có danh sách yêu thích → tạo mới
-        if (!favourite) {
-            favourite = await Favourite.create({
-                user_id: userId,
-                items: [{ product_id }]
-            });
+    if (!favourite) {
+      favourite = new Favourite({
+        user_id: userId,
+        items: [{ product_id }]
+      });
+      await favourite.save();
 
-            return res.status(201).json({
-                success: true,
-                message: "Đã thêm vào yêu thích",
-                data: favourite
-            });
-        }
-
-        // Kiểm tra sản phẩm đã tồn tại chưa
-        const exists = favourite.items.some(
-            (item) => item.product_id.toString() === product_id
-        );
-
-        if (exists) {
-            return res.status(400).json({
-                success: false,
-                message: "Sản phẩm đã nằm trong danh sách yêu thích"
-            });
-        }
-
-        // Thêm product vào danh sách
-        favourite.items.push({ product_id });
-        await favourite.save();
-
-        return res.status(200).json({
-            success: true,
-            message: "Đã thêm vào yêu thích",
-            data: favourite
-        });
-
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ message: "Server error" });
+      return res.json({ isFavorite: true });
     }
+
+    const index = favourite.items.findIndex(
+      item => item.product_id.toString() === product_id
+    );
+
+   
+    if (index === -1) {
+      favourite.items.push({ product_id });
+      await favourite.save();
+      return res.json({ isFavorite: true });
+    }
+
+
+    favourite.items.splice(index, 1);
+    await favourite.save();
+    return res.json({ isFavorite: false });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
 };
 
 
 
 export const removeFavorite = async (req, res) => {
-    try {
-        const userId = req.user._id;
-        const { product_id } = req.body;
+  try {
+    const userId = req.user._id;
+    const { productId } = req.params;
 
-        const favourite = await Favourite.findOneAndUpdate(
-            { user_id: userId },
-            {
-                $pull: { items: { product_id } }
-            },
-            { new: true }
-        );
+    const favourite = await Favourite.findOneAndUpdate(
+      { user_id: userId },
+      { $pull: { items: { product_id: productId } } },
+      { new: true }
+    );
 
-        return res.status(200).json({
-            success: true,
-            message: "Đã xóa khỏi yêu thích",
-            data: favourite
-        });
+    return res.status(200).json({
+      success: true,
+      message: "Đã xóa khỏi yêu thích",
+      data: favourite
+    });
 
-    } catch (err) {
-        console.error(err);
-        return res.status(500).json({ message: "Server error" });
-    }
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Server error" });
+  }
 };
 
 
@@ -198,4 +190,3 @@ export const checkFavorite = async (req, res) => {
         return res.status(500).json({ message: "Server error" });
     }
 };
-

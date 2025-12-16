@@ -7,8 +7,10 @@ const productFavoriteSchema = new mongoose.Schema({
         required: true
     },
 },
-    {_id: false}
-)
+    {timestamp: true}
+
+    
+);
 const favouriteSchema = new mongoose.Schema({
     user_id: {
         type: mongoose.Schema.Types.ObjectId,
@@ -16,6 +18,8 @@ const favouriteSchema = new mongoose.Schema({
         required: true
     },
     items: [productFavoriteSchema],
-});
+},
+    {timestamp: true}
+);
 
 export default mongoose.model("Favourite", favouriteSchema);
