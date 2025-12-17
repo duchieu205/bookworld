@@ -14,6 +14,7 @@ import authRoutes from "./auth.js";
 import analyticsRoutes from "./analytics.js";
 import inforUserRoutes from "./infoUser.js"
 import authAdmin from "./authAdmin.js";
+import reviewRoutes from "./review.js";
 const routes = Router();
 
 // API resource routes
@@ -27,6 +28,8 @@ routes.use("/auth", authRoutes);
 routes.use("/analytics", analyticsRoutes);
 routes.use("/me", inforUserRoutes);
 routes.use("/admin", authAdmin);
+// Review admin endpoints (approve/reject, list)
+routes.use("/reviews", reviewRoutes);
 
 
 
