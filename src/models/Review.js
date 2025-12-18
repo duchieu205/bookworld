@@ -7,6 +7,11 @@ const reviewSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+      order: {                           
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+    },
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
@@ -23,10 +28,20 @@ const reviewSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    images: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: function (v) {
+          return v.length <= 5;
+        },
+        message: "Tối đa 5 ảnh",
+      },
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
-      default: "pending",
+      default: "approved",
     },
     admin: {
       type: mongoose.Schema.Types.ObjectId,
@@ -40,9 +55,8 @@ const reviewSchema = new mongoose.Schema(
   }
 );
 
-// index to speed up product queries
 reviewSchema.index({ product: 1, status: 1 });
 
-const Review = mongoose.model("Review", reviewSchema);
 
-export default Review;
+export default mongoose.models.Review ||
+  mongoose.model("Review", reviewSchema);
