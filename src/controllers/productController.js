@@ -3,6 +3,7 @@ import createError from "../utils/createError.js";
 import mongoose from "mongoose";
 import Variant from "../models/variant.js";
 import Category from "../models/Category.js";
+import Review from "../models/Review.js";
 
 
 export const createProduct = async (req, res) => {
@@ -102,13 +103,19 @@ export const getProductById = async (req, res, next) => {
     // Lấy variants của sản phẩm
     const variant = await Variant.find({ product_id: id });
 
+    // Lấy review đã được admin duyệt
+    const reviews = await Review.find({ product: id, status: "approved" })
+      .populate("user", "name email")
+      .sort({ createdAt: -1 });
+
     return res.status(200).json({
       success: true,
-      message: "Product with variants and category retrieved",
+      message: "Product with variants, category and reviews retrieved",
       data: {
         product,
         variant,
-        category: product.category
+        category: product.category,
+        reviews
       }
     });
   } catch (err) {

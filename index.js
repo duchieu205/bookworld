@@ -8,24 +8,34 @@ import jsonValid from "./src/middlewares/jsonInvalid.js";
 import notFoundHandler from "./src/middlewares/notFoundHandler.js";
 import { formatResponseSuccess } from "./src/middlewares/successHandler.js";
 import routes from "./src/routes/index.js";
-// var GoogleStrategy = require('passport-google-oauth20').Strategy;
 import session from "express-session";
 import passport from "passport";
-import "./src/configs/passport.js"; //
+import "./src/configs/passport.js";
 import authRoutes from "./src/routes/auth.js";
+
 const app = express();
+
+/* ================= BASIC MIDDLEWARE ================= */
 app.use(express.json());
+
+
+app.use("/uploads", express.static("uploads"));
 
 connectDB();
 
+/* ================= CORS ================= */
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+    ],
     credentials: true,
-    // Them cac cau hinh can thiet
   })
 );
 
+/* ================= SESSION & PASSPORT ================= */
 app.use(
   session({
     secret: "secret",
@@ -34,33 +44,31 @@ app.use(
   })
 );
 
-// ✅ Kích hoạt Passport middleware
 app.use(passport.initialize());
 app.use(passport.session());
 
+/* ================= SWAGGER ================= */
 setupSwagger(app);
 
-// Middleware xử lý format dữ liệu JSON trả về
+/* ================= CUSTOM MIDDLEWARE ================= */
 app.use(formatResponseSuccess);
-
-// Middleware xử lý JSON không hợp lệ
 app.use(jsonValid);
 
-// Middleware xửa lý lỗi chung
+/* ================= ROUTES ================= */
 app.use("/", authRoutes);
 app.use("/api", routes);
 
-// Middleware xử lý route không tồn tại
+/* ================= ERROR HANDLING ================= */
 app.use(notFoundHandler);
 app.use(errorHandler);
 
+/* ================= START SERVER ================= */
 const server = app.listen(PORT, () => {
-  console.log(`Server is running on: http://localhost:${PORT}/api`);
-  console.log(`Swagger Docs available at http://localhost:${PORT}/api-docs`);
+  console.log(`Server running: http://localhost:${PORT}`);
 });
 
-// Middleware xử lý lỗi không xác định
-process.on("unhandledRejection", (error, promise) => {
-  console.error(`Error: ${error.message}`);
+/* ================= PROCESS ERROR ================= */
+process.on("unhandledRejection", (error) => {
+  console.error(error.message);
   server.close(() => process.exit(1));
 });

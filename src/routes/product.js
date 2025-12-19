@@ -1,6 +1,7 @@
 import { Router } from "express";
 import handleAsync from "../utils/handleAsync.js";
 import productController from "../controllers/productController.js";
+import reviewController from "../controllers/reviewController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = Router();
@@ -15,6 +16,10 @@ router.post("/", authMiddleware.requireAdmin, handleAsync(productController.crea
 
 // Get product by id
 router.get("/:id", handleAsync(productController.getProductById));
+
+// Reviews: public list and authenticated create (created reviews remain pending until admin approves)
+router.get("/:id/reviews", handleAsync(reviewController.getReviewsByProduct));
+router.post("/:id/reviews", authMiddleware.verifyToken, handleAsync(reviewController.createReview));
 
 // Update product
 router.put("/:id", authMiddleware.requireAdmin, handleAsync(productController.updateProduct));
