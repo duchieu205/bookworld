@@ -1,6 +1,6 @@
 import { Router } from "express";
 import handleAsync from "../utils/handleAsync.js";
-import Order from "../models/Order.js";
+import Order from "../models/order.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
 import {
