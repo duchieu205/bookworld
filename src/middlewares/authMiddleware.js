@@ -15,40 +15,59 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Lấy thông tin user (bao gồm role)
-    const user = await User.findById(decoded.userId).select("-password");
+    const user = await User.findById(decoded.userId || decoded.id).select("-password");
 
     if (!user)
       return res.status(401).json({ message: "Token không hợp lệ" });
 
-    req.user = user; // Lưu full user -> dùng được role, email...
+    req.user = user;
     next();
   } catch (err) {
     return res.status(401).json({ message: "Token không hợp lệ" });
   }
 };
 
-
-// middleware kiểm tra quyền
+// Middleware kiểm tra quyền linh hoạt
 export const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: "Bạn không có quyền truy cập" });
     }
     next();
   };
 };
 
-export const requireAdmin = (req, res, next) => {
-  if (!req.user || req.user.role !== "admin") {
-    return res.status(403).json({ message: "Chỉ admin mới được truy cập" });
+// SỬA LẠI requireAdmin ĐỂ TỰ XÁC THỰC MÀ KHÔNG CẦN verifyToken TRƯỚC ĐÓ
+export const requireAdmin = async (req, res, next) => {
+  try {
+    const authHeader = req.header("Authorization");
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ message: "Không có quyền, thiếu Token" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Kiểm tra cả 'userId' hoặc 'id' tùy theo lúc bạn sign token ở file login
+    const user = await User.findById(decoded.userId || decoded.id);
+
+    // LOG ĐỂ DEBUG - Hãy nhìn vào Terminal chạy Node.js của bạn
+    console.log("--- KIỂM TRA QUYỀN ADMIN ---");
+    console.log("Email:", user ? user.email : "Không tìm thấy user");
+    console.log("Role trong DB:", user ? user.role : "N/A");
+
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ message: "Chỉ admin mới được truy cập" });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error("Lỗi xác thực Admin:", err.message);
+    return res.status(401).json({ message: "Token không hợp lệ hoặc hết hạn" });
   }
-  next();
 };
-
-
 
 export default {
   verifyToken, authorize, requireAdmin
-} 
+};

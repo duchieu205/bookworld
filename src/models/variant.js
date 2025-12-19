@@ -26,7 +26,7 @@
 				type: Number,
 				default: 0,
 			},
-			status: {
+			status: {		
 				type: String,
 				enum: ["active", "inactive"],
 				default: "active",
