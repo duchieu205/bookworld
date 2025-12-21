@@ -39,11 +39,11 @@ const orderSchema = new Schema(
       method: { type: String, default: "cod" },
       status: {
         type: String,
-        enum: ["Chưa thanh toán", "Đã thanh toán", "Thất bại"],
         default: "Chưa thanh toán",
       },
       transaction_id: { type: String },
     },
+		expiredAt: {Date},
     shipping_address: { type: Object, default: {} },
     note: { type: String, default: "" },
   },

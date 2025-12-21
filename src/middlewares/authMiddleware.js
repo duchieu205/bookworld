@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import createError from "../utils/createError.js";
+import rateLimit from "express-rate-limit";
 
 export const verifyToken = async (req, res, next) => {
   const authHeader = req.header("Authorization");
@@ -68,6 +70,36 @@ export const requireAdmin = async (req, res, next) => {
   }
 };
 
+
+
+
+export const verifyResetToken = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) throw createError(401, "Thiếu reset token");
+
+    const token = authHeader.split(" ")[1];
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.type !== "reset-password")
+      throw createError(403, "Token không hợp lệ");
+
+    req.userId = decoded.userId;
+    next();
+  } catch (err) {
+    next(createError(401, "Reset token không hợp lệ hoặc đã hết hạn"));
+  }
+};
+
+export const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Quá nhiều yêu cầu, thử lại sau",
+});
+
+
+
 export default {
-  verifyToken, authorize, requireAdmin
+  verifyToken, authorize, requireAdmin, verifyResetToken, forgotPasswordLimiter
 };

@@ -3,7 +3,13 @@ import express from "express";
 import { body } from "express-validator";
 import * as authController from "../controllers/authController.js";
 import authMiddleware, { verifyToken, requireAdmin } from "../middlewares/authMiddleware.js";
-
+import {
+  loginValidator,
+  forgotPasswordValidator,
+  verifyOTPValidator,
+  resetPasswordValidator,
+  
+} from "../validators/authValidator.js";
 import User from "../models/User.js";
 const router = express.Router();
 
@@ -26,6 +32,9 @@ const router = express.Router();
     ],
     authController.login
     );
+    router.post("/forgot-password" ,forgotPasswordValidator, authMiddleware.forgotPasswordLimiter, authController.forgotPassword);
+    router.post("/verify-otp", verifyOTPValidator, authController.verifyResetOTP);
+    router.post("/reset-password", resetPasswordValidator, authMiddleware.verifyResetToken, authController.resetPassword);
 
 
     router.get('/me', authMiddleware.verifyToken ,authController.getUserId);
