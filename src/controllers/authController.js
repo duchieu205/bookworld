@@ -75,8 +75,7 @@ import createError from "../utils/createError.js";
             console.error(err);
             return res.status(500).json({ message: 'Lỗi server' });
             };
-        
-
+    
     };
         export const getUserId = async(req, res) => {
                 try {
@@ -170,7 +169,6 @@ import createError from "../utils/createError.js";
                     message: "Nếu email tồn tại, OTP đã được gửi",
                 });
                 }
-
                 // ⏱ Chặn gửi quá nhanh (60s)
             if (user.otpLastRequestAt && now - user.otpLastRequestAt.getTime() < 60 * 1000) {
                 throw createError(429, "Vui lòng chờ 60 giây trước khi gửi lại OTP");
@@ -249,7 +247,7 @@ import createError from "../utils/createError.js";
                         }
                     throw createError(400, "OTP không đúng");
                 }
-                 
+              
 
                 // 👉 Tạo reset token (chỉ dùng cho reset password)
                 const resetToken = jwt.sign(

@@ -16,8 +16,9 @@ role: {
 resetPasswordOTP: String,
 resetPasswordExpires: Date,
 otpRequestCount: { type: Number, default: 0 },
-otpLastRequestAt: { type: Date },
 otpVerifyAttempts: { type: Number, default: 0 },
+otpLastRequestAt: { type: Date },
+
 createdAt: { type: Date, default: Date.now }
 });
 

@@ -69,7 +69,6 @@
             ];
         }
         if (status) query.status = status;
-
         // Tính pagination
         const pageNum = Math.max(1, parseInt(page));
         const limitNum = Math.max(1, parseInt(limit));

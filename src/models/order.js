@@ -30,6 +30,7 @@ const orderSchema = new Schema(
         "Đã xác nhận",
         "Đang chuẩn bị hàng",
         "Đang giao hàng",
+        "Giao hàng không thành công",
         "Giao hàng thành công",
         "Trả hàng/Hoàn tiền",
       ],
