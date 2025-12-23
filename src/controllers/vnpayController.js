@@ -394,6 +394,7 @@ export const vnpayReturn = async (req, res) => {
 
     // CẬP NHẬT TRẠNG THÁI ĐỢN HÀNG
     order.payment.status = "Đã thanh toán";
+    order.expiredAt = null;
     order.payment.transaction_id = vnp_TransactionNo;
     order.payment.bank_code = vnp_BankCode;
     order.payment.paid_at = new Date();

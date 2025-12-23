@@ -12,6 +12,8 @@ import session from "express-session";
 import passport from "passport";
 import "./src/configs/passport.js";
 import authRoutes from "./src/routes/auth.js";
+import { startOrderExpireCron } from "./src/cron/orderExpire.Cron.js";
+
 
 const app = express();
 
@@ -66,6 +68,7 @@ app.use(errorHandler);
 const server = app.listen(PORT, () => {
   console.log(`Server running: http://localhost:${PORT}`);
 });
+startOrderExpireCron();
 
 /* ================= PROCESS ERROR ================= */
 process.on("unhandledRejection", (error) => {

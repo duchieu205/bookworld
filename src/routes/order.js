@@ -9,9 +9,7 @@ import {
   getUserOrders,
   getAllOrders,
   updateOrderStatus,
-  cancelOrder,
-  payOrder,
-  paymentWebhook,
+  cancelOrder
 } from "../controllers/orderController.js";
 
 const router = Router();
@@ -56,10 +54,6 @@ router.put("/:id/status", authMiddleware.verifyToken, updateOrderStatus);
 // Cancel order
 router.put("/:id", authMiddleware.verifyToken, cancelOrder);
 
-// Start payment
-router.post("/:id/pay", authMiddleware.verifyToken, payOrder);
 
-// Payment webhook
-router.post("/webhook/payment", paymentWebhook);
 
 export default router;

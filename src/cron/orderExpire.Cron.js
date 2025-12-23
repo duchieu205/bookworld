@@ -12,6 +12,7 @@ export const startOrderExpireCron = () => {
       });
 
       for (const order of expiredOrders) {
+        order.status = "Đã hủy";
         order.payment.status = "Thất bại";
         await order.save();
       }

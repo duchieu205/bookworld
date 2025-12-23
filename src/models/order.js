@@ -44,7 +44,11 @@ const orderSchema = new Schema(
       },
       transaction_id: { type: String },
     },
-		expiredAt: {Date},
+		expiredAt: {
+      type: Date,
+      index: true,
+      default: () => new Date(Date.now() + 15 * 60 * 1000),
+    },
     shipping_address: { type: Object, default: {} },
     note: { type: String, default: "" },
   },

@@ -4,11 +4,9 @@ import Variant from "../models/variant.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
-import Stripe from "stripe";
 
-const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-const STRIPE_CURRENCY = process.env.STRIPE_CURRENCY || "vnd";
+
+
 
 // Create an order. If body.items is omitted, it will try to build from the user's cart.
 export const createOrder = async (req, res) => {
@@ -86,7 +84,7 @@ export const createOrder = async (req, res) => {
 		status: "Chờ xử lý",
 		payment: {
 			method: req.body.payment?.method || "cod",
-			status: req.body.payment?.status || "Chưa thanh toán"
+			status: req.body.payment?.status || "Chờ thanh toán"
 		}
 	});
 	// Trừ kho biến thể
@@ -221,6 +219,7 @@ export const cancelOrder = async (req, res) => {
 	}
 
 	order.status = "Đã hủy";
+	order.payment.status = "Đã hủy";
 	order.note = req.body.note;
 	await order.save();
 
@@ -246,98 +245,7 @@ export const cancelOrder = async (req, res) => {
 	});
 };
 
-export const payOrder = async (req, res) => {
-	const { id } = req.params;
-	// Lấy userId từ req.user._id
-	const userId = req.user && req.user._id;
-	const isAdmin = req.user && req.user.role === "admin";
-	
-	if (!userId) throw createError(401, "Chưa đăng nhập");
 
-	const order = await Order.findById(id);
-	if (!order) throw createError(404, "Order không tồn tại");
-	if (String(order.user_id) !== String(userId) && !isAdmin) {
-		throw createError(403, "Không có quyền thanh toán đơn này");
-	}
-	if (order.status !== "pending") throw createError(400, "Chỉ được thanh toán đơn hàng ở trạng thái pending");
-
-	if (!stripe) throw createError(500, "Stripe chưa cấu hình trên server");
-
-	// Build line items for Stripe Checkout. Note: unit_amount must be an integer.
-	const line_items = order.items.map((it) => ({
-		price_data: {
-			currency: STRIPE_CURRENCY,
-			product_data: { name: it.name || "Item" },
-			unit_amount: Math.round(Number(it.price || 0)),
-		},
-		quantity: Number(it.quantity || 1),
-	}));
-
-	const session = await stripe.checkout.sessions.create({
-		payment_method_types: ["card"],
-		line_items,
-		mode: "payment",
-		success_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-		cancel_url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/payment-cancel`,
-		metadata: { orderId: order._id.toString() },
-	});
-order.payment.method = "stripe";
-	order.payment.transaction_id = session.id;
-	await order.save();
-
-	return res.status(200).json({ 
-		success: true, 
-		message: "Checkout session created", 
-		data: { url: session.url, sessionId: session.id }
-	});
-};
-
-export const paymentWebhook = async (req, res) => {
-	// If Stripe is configured and a webhook secret provided, try to verify signature
-	const sig = req.headers && (req.headers["stripe-signature"] || req.headers["Stripe-Signature"]);
-	if (stripe && STRIPE_WEBHOOK_SECRET && sig) {
-		let event;
-		try {
-			const payload = Buffer.from(JSON.stringify(req.body));
-			event = stripe.webhooks.constructEvent(payload, sig, STRIPE_WEBHOOK_SECRET);
-		} catch (err) {
-			return res.status(400).send(`Webhook signature verification failed: ${err.message}`);
-		}
-
-		if (event.type === "checkout.session.completed") {
-			const session = event.data.object;
-			const orderId = session.metadata && session.metadata.orderId;
-			if (!orderId) return res.status(200).json({ success: true, message: "No order metadata" });
-			
-			const order = await Order.findById(orderId);
-			if (!order) return res.status(200).json({ success: true, message: "Order not found" });
-			if (order.payment.status === "paid") return res.status(200).json({ success: true, message: "Already paid" });
-
-			order.payment.status = "paid";
-			order.payment.transaction_id = session.payment_intent || session.id;
-			order.status = "confirmed";
-			await order.save();
-
-			return res.status(200).json({ success: true, message: "Stripe payment processed", data: order });
-		}
-
-		return res.status(200).json({ success: true, message: "Event received" });
-	}
-
-	// Fallback: simple stub for non-Stripe providers or manual calls
-	const { orderId, status, transaction_id } = req.body;
-	if (!orderId) throw createError(400, "Thiếu orderId");
-
-	const order = await Order.findById(orderId);
-	if (!order) throw createError(404, "Order không tồn tại");
-
-	order.payment.status = status || order.payment.status;
-	if (transaction_id) order.payment.transaction_id = transaction_id;
-	if (status === "paid") order.status = "confirmed";
-	await order.save();
-
-	return res.status(200).json({ success: true, message: "Webhook xử lý xong", data: order });
-};
 
 export default {
 	createOrder,
@@ -345,7 +253,5 @@ export default {
 	getUserOrders,
 	getAllOrders,
 	updateOrderStatus,
-	cancelOrder,
-	payOrder,
-	paymentWebhook,
+	cancelOrder
 };
