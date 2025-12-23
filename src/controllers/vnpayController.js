@@ -284,70 +284,159 @@ console.log("VNPay paymentUrl:", paymentUrl);
 
 export const vnpayReturn = async (req, res) => {
   try {
+    console.log("🔄 VNPay callback received:", req.query);
+    
     const params = req.query;
 
+    // Verify checksum
     const isValid = verifyVnPayChecksum(
       params,
       process.env.VNP_HASH_SECRET
     );
 
     if (!isValid) {
-      return res.status(400).send("Checksum không hợp lệ");
+      console.error("❌ Checksum không hợp lệ");
+      return res.redirect(`${process.env.FRONTEND_URL}/order?error=invalid_signature`);
     }
 
-    const { vnp_ResponseCode, vnp_TxnRef, vnp_Amount } = params;
+    const { 
+      vnp_ResponseCode, 
+      vnp_TxnRef, 
+      vnp_Amount, 
+      vnp_TransactionNo,
+      vnp_BankCode 
+    } = params;
 
+    console.log("📋 Payment info:", {
+      orderId: vnp_TxnRef,
+      responseCode: vnp_ResponseCode,
+      amount: vnp_Amount,
+      transactionNo: vnp_TransactionNo
+    });
+
+    // Tìm order
     const order = await Order.findById(vnp_TxnRef);
     if (!order) {
-      return res.status(404).send("Không tìm thấy đơn hàng");
+      console.error("❌ Không tìm thấy đơn hàng:", vnp_TxnRef);
+      return res.redirect(`${process.env.FRONTEND_URL}/order?error=order_not_found`);
     }
 
-    // Đã xử lý rồi
+    // Check idempotent (đã xử lý rồi thì skip)
     if (order.payment.status === "Đã thanh toán") {
-      return res.redirect(`${process.env.FRONTEND_URL}/orders`);
+      console.log("⚠️ Đơn hàng đã được xử lý trước đó");
+      return res.redirect(`${process.env.FRONTEND_URL}/order?success=true&orderId=${order._id}`);
     }
 
-    // Thanh toán thất bại
+    // Check response code
     if (vnp_ResponseCode !== "00") {
+      console.error("❌ Thanh toán thất bại - Mã lỗi:", vnp_ResponseCode);
+      
       order.payment.status = "Thất bại";
+      order.payment.transaction_id = vnp_TransactionNo;
+      order.status = "Đã hủy";
       await order.save();
-      return res.redirect(`${process.env.FRONTEND_URL}/orders`);
+      
+      return res.redirect(`${process.env.FRONTEND_URL}/order?error=payment_failed&code=${vnp_ResponseCode}`);
     }
 
-    // Check amount (×100)
-    if (order.total * 100 !== Number(vnp_Amount)) {
+    // Verify amount (VNPay nhân x100)
+    const expectedAmount = order.total * 100;
+    const receivedAmount = Number(vnp_Amount);
+    
+    if (expectedAmount !== receivedAmount) {
+      console.error("❌ Số tiền không khớp:", {
+        expected: expectedAmount,
+        received: receivedAmount,
+        difference: Math.abs(expectedAmount - receivedAmount)
+      });
+      
       order.payment.status = "Thất bại - sai số tiền";
+      order.payment.transaction_id = vnp_TransactionNo;
+      order.status = "Đã hủy";
       await order.save();
-      return res.redirect(`${process.env.FRONTEND_URL}/orders`);
+      
+      return res.redirect(`${process.env.FRONTEND_URL}/order?error=amount_mismatch`);
     }
 
-    // Trừ kho (không transaction)
+    // Trừ kho (CRITICAL SECTION)
+    console.log("📦 Bắt đầu trừ kho cho", order.items.length, "sản phẩm");
+    
     for (const it of order.items) {
-      const updated = await Variant.findOneAndUpdate(
-        { _id: it.variant_id, quantity: { $gte: it.quantity } },
-        { $inc: { quantity: -it.quantity } }
-      );
-
-      if (!updated) {
-        order.payment.status = "Thất bại - hết hàng";
+      const variant = await Variant.findById(it.variant_id);
+      
+      if (!variant) {
+        console.error("❌ Không tìm thấy variant:", it.variant_id);
+        order.payment.status = "Thất bại - không tìm thấy sản phẩm";
+        order.status = "Đã hủy";
         await order.save();
-        return res.redirect(`${process.env.FRONTEND_URL}/orders`);
+        return res.redirect(`${process.env.FRONTEND_URL}/order?error=variant_not_found`);
       }
+
+      if (variant.quantity < it.quantity) {
+        console.error("❌ Hết hàng:", {
+          variantId: it.variant_id,
+          requested: it.quantity,
+          available: variant.quantity
+        });
+        
+        order.payment.status = "Thất bại - hết hàng";
+        order.status = "Đã hủy";
+        await order.save();
+        return res.redirect(`${process.env.FRONTEND_URL}/order?error=out_of_stock`);
+      }
+
+      // Trừ số lượng
+      variant.quantity -= it.quantity;
+      await variant.save();
+      
+      console.log(`Đã trừ ${it.quantity} sản phẩm từ variant ${it.variant_id}`);
     }
 
-    // Thành công
+    // CẬP NHẬT TRẠNG THÁI ĐỢN HÀNG
     order.payment.status = "Đã thanh toán";
+    order.payment.transaction_id = vnp_TransactionNo;
+    order.payment.bank_code = vnp_BankCode;
+    order.payment.paid_at = new Date();
     order.status = "Chờ xử lý";
+    
     await order.save();
+    
+    console.log("✅ ĐÃ CẬP NHẬT ORDER:", {
+      orderId: order._id,
+      paymentStatus: order.payment.status,
+      orderStatus: order.status,
+      transactionId: vnp_TransactionNo
+    });
 
-    return res.redirect(`${process.env.FRONTEND_URL}/orders`);
+    // XÓA SẢN PHẨM KHỎI GIỎ HÀNG
+    try {
+      const cart = await Cart.findOne({ user_id: order.user_id });
+      
+      if (cart) {
+        // Xóa các items đã thanh toán
+        cart.items = cart.items.filter(cartItem => {
+          return !order.items.some(orderItem => 
+            String(cartItem.product_id) === String(orderItem.product_id) &&
+            String(cartItem.variant_id) === String(orderItem.variant_id)
+          );
+        });
+        
+        await cart.save();
+        console.log("✅ Đã xóa sản phẩm khỏi giỏ hàng");
+      }
+    } catch (cartErr) {
+      console.warn("⚠️ Không thể xóa giỏ hàng:", cartErr.message);
+   
+    }
+
+    console.log("🎉 Thanh toán hoàn tất! Redirect về frontend...");
+    return res.redirect(`${process.env.FRONTEND_URL}/order?success=true&orderId=${order._id}`);
+    
   } catch (err) {
-    console.error("VNPay return error:", err);
-    return res.status(500).send("Server error");
+    console.error("❌ VNPay return fatal error:", err);
+    return res.redirect(`${process.env.FRONTEND_URL}/order?error=server_error`);
   }
 };
-
-
 
 export default {
     createOrderWithVnPay,
