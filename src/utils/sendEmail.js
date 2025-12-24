@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-export const sendEmail = async ( {to, subject, html}) => {
+export const sendEmail = async ({ to, subject, html }) => {
   try {
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
@@ -10,6 +10,10 @@ export const sendEmail = async ( {to, subject, html}) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      // config này để fix lỗi SSL
+      tls: {
+        rejectUnauthorized: false, // Bỏ qua lỗi certificate
+      },
     });
 
     await transporter.sendMail({
@@ -17,12 +21,11 @@ export const sendEmail = async ( {to, subject, html}) => {
       to,
       subject,
       html,
-      });
+    });
+    
+    console.log('✅ Email sent successfully to:', to);
   } catch (error) {
-    console.error("Lỗi gửi email:", error);
+    console.error("❌ Lỗi gửi email:", error);
     throw new Error("Error sending email: " + error.message);
   }
 };
-
-
-
