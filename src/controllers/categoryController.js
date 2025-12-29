@@ -1,6 +1,6 @@
     import Category from "../models/Category.js";
     import createError from "../utils/createError.js";
-
+    import Product from "../models/Product.js";
     // Hàm tạo slug (bỏ dấu tiếng Việt)
     const generateSlug = (name) => {
         return String(name)
@@ -93,14 +93,29 @@
     // Lấy category theo id
     export const getCategoryById = async (req, res) => {
         const { id } = req.params;
-        
+
         const category = await Category.findById(id);
+
         if (!category) {
             throw createError(404, "Không tìm thấy danh mục");
         }
 
-        return res.success(category, "Lấy thông tin danh mục thành công");
+        const products = await Product.find({ category: id })
+            .populate({
+            path: "variants",
+            match: { status: "active" }, // optional
+            select: "type price quantity images sku",
+            });
+
+        return res.success(
+            {
+            category,
+            products,
+            },
+            "Lấy thông tin danh mục thành công"
+        );
     };
+
 
     // Cập nhật category
     export const updateCategory = async (req, res) => {

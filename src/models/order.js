@@ -32,10 +32,13 @@ const orderSchema = new Schema(
         "Đang giao hàng",
         "Giao hàng không thành công",
         "Giao hàng thành công",
-        "Trả hàng/Hoàn tiền",
+        "Đang yêu cầu Trả hàng/Hoàn tiền",
+        "Trả hàng/Hoàn tiền thành công",
+        "Hoàn tất"
       ],
       default: "Chờ xử lý",
     },
+    delivered_at: Date,
     payment: {
       method: { type: String, default: "cod" },
       status: {
@@ -55,6 +58,7 @@ const orderSchema = new Schema(
   { timestamps: true }
 );
 
+orderSchema.index({ status: 1, delivered_at: 1 })
 
 export default mongoose.models.Order ||
   mongoose.model("Order", orderSchema);

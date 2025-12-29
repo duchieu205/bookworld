@@ -4,7 +4,7 @@ import Variant from "../models/variant.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
-
+import Wallet from "./models/wallet.js";
 
 
 
@@ -192,6 +192,12 @@ export const updateOrderStatus = async (req, res) => {
 	const isAdmin = req.user && req.user.role === "admin";
 	if (!isAdmin) throw createError(403, "Chỉ admin mới thay đổi trạng thái đơn hàng");
 
+	if (status === "Giao hàng thành công") {
+    // Chỉ set delivered_at 1 lần
+		if (!order.delivered_at) {
+		order.delivered_at = new Date();
+		}
+  	}
 	order.status = status;
 	await order.save();
 
@@ -201,6 +207,88 @@ export const updateOrderStatus = async (req, res) => {
 		data: order 
 	});
 };
+
+
+export const requestReturnOrder = async (req, res) => {
+  const { id } = req.params;
+  const order = await Order.findById(id);
+  if (!order) throw createError(404, "Đơn hàng không tồn tại");
+
+  const userId = req.user._id;
+
+  // Chỉ owner mới được yêu cầu
+  if (String(order.user_id) !== String(userId)) {
+    throw createError(403, "Không có quyền yêu cầu trả hàng");
+  }
+
+  // Check trạng thái
+  if (order.status !== "Giao hàng thành công") {
+    throw createError(400, "Không thể trả hàng ở trạng thái hiện tại");
+  }
+
+  // Check thời hạn 3 ngày
+  const isExpired = !order.delivered_at || new Date() > new Date(order.delivered_at.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+  if (isExpired) {
+    throw createError(400, "Đã quá thời hạn yêu cầu trả hàng/hoàn tiền");
+  }
+
+  order.status = "Đang yêu cầu Trả hàng/Hoàn tiền";
+
+  await order.save();
+
+  return res.status(200).json({
+    success: true,
+    message: "Đã gửi yêu cầu trả hàng/hoàn tiền",
+    data: order,
+  });
+};
+
+
+export const approveReturnOrder = async (req, res) => {
+  const { id } = req.params;
+
+  const order = await Order.findById(id);
+  if (!order) throw createError(404, "Đơn hàng không tồn tại");
+
+  if (req.user.role !== "admin") {
+    throw createError(403, "Chỉ admin mới được duyệt trả hàng");
+  }
+
+  if (order.status !== "Đang yêu cầu Trả hàng/Hoàn tiền") {
+    throw createError(400, "Đơn hàng không ở trạng thái chờ duyệt");
+  }
+
+  order.status = "Trả hàng/Hoàn tiền thành công";
+
+  await order.save();
+
+  const wallet = await Wallet.findById(order.user_id);
+  wallet.balance += order.toal;
+  await wallet.save();
+  // restore stock (sau khi duyệt)
+  for (const item of order.items) {
+    if (item.variant_id) {
+      await Variant.findByIdAndUpdate(
+        item.variant_id,
+        { $inc: { quantity: item.quantity } }
+      );
+    } else {
+      await Product.findByIdAndUpdate(
+        item.product_id,
+        { $inc: { quantity: item.quantity } }
+      );
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Đã duyệt trả hàng/hoàn tiền",
+    data: order,
+  });
+};
+
+
 
 export const cancelOrder = async (req, res) => {
 	const { id } = req.params;
@@ -222,6 +310,7 @@ export const cancelOrder = async (req, res) => {
 	order.payment.status = "Đã hủy";
 	order.note = req.body.note;
 	await order.save();
+
 
 	// restore stock
 	for (const item of order.items) {

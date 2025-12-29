@@ -58,32 +58,71 @@ export const createProduct = async (req, res) => {
 
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {
-	const { page = 1, limit = 10, search, category, status } = req.query;
-	const query = {};
+  const { page = 1, limit = 10, search, category, status } = req.query;
 
-	if (search) {
-		query.$or = [
-			{ name: { $regex: search, $options: "i" } },
-			{ description: { $regex: search, $options: "i" } },
-		];
-	}
-	if (category) query.category = category;
-	if (status) query.status = status;
+  const pageNum = Math.max(1, parseInt(page, 10));
+  const lim = Math.max(1, parseInt(limit, 10));
 
-	const pageNum = Math.max(1, parseInt(page, 10));
-	const lim = Math.max(1, parseInt(limit, 10));
+  const match = {};
 
-	const total = await Product.countDocuments(query);
-	const items = await Product.find(query)
-		.skip((pageNum - 1) * lim)
-		.limit(lim)
-		.sort({ createdAt: -1 })
-		.populate("category");
-	return res.success(
-		{ items, total, page: pageNum, limit: lim },
-		"Products retrieved",
-		200
-	);
+  if (search) {
+    match.$or = [
+      { name: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+  if (category) match.category = new mongoose.Types.ObjectId(category);
+  if (status) match.status = status;
+
+  const pipeline = [
+    { $match: match },
+
+    // join variant
+    {
+      $lookup: {
+        from: "variants",
+        localField: "_id",
+        foreignField: "product_id",
+        as: "variants",
+      },
+    },
+
+    // tính giá thấp nhất
+    {
+      $addFields: {
+        minPrice: { $min: "$variants.price" },
+      },
+    },
+
+    // không cần trả variants
+    {
+      $project: {
+        variants: 0,
+      },
+    },
+
+    { $sort: { createdAt: -1 } },
+    { $skip: (pageNum - 1) * lim },
+    { $limit: lim },
+  ];
+
+  const [items, totalArr] = await Promise.all([
+    Product.aggregate(pipeline),
+    Product.aggregate([
+      { $match: match },
+      { $count: "total" },
+    ]),
+  ]);
+
+  const total = totalArr[0]?.total || 0;
+
+  await Product.populate(items, { path: "category" });
+
+  return res.success(
+    { items, total, page: pageNum, limit: lim },
+    "Products retrieved",
+    200
+  );
 };
 
 // Get product detail by id

@@ -421,7 +421,7 @@ export const vnpayReturn = async (req, res) => {
             String(cartItem.variant_id) === String(orderItem.variant_id)
           );
         });
-        
+          
         await cart.save();
         console.log("✅ Đã xóa sản phẩm khỏi giỏ hàng");
       }

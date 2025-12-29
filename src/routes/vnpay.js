@@ -1,5 +1,5 @@
 import express from "express";
-import { createOrderWithVnPay, vnpayReturn } from "../controllers/vnpayController.js";
+import { createOrderWithVnPay, vnpayReturn } from "../controllers/orderVnpayController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
