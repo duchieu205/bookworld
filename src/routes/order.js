@@ -9,7 +9,9 @@ import {
   getUserOrders,
   getAllOrders,
   updateOrderStatus,
-  cancelOrder
+  cancelOrder,
+  requestReturnOrder,
+  approveReturnOrder
 } from "../controllers/orderController.js";
 
 const router = Router();
@@ -43,16 +45,21 @@ router.post("/", authMiddleware.verifyToken, createOrder);
 router.get("/", authMiddleware.verifyToken, getUserOrders);
 
 // Admin: list all orders
-router.get("/admin/list", authMiddleware.verifyToken, getAllOrders);
+router.get("/admin/list", authMiddleware.requireAdmin, getAllOrders);
 
 // Get order detail
 router.get("/:id", authMiddleware.verifyToken, getOrderById);
 
 // Update order status (admin)
-router.put("/:id/status", authMiddleware.verifyToken, updateOrderStatus);
+router.put("/status/:id", authMiddleware.requireAdmin, updateOrderStatus);
 
 // Cancel order
 router.put("/:id", authMiddleware.verifyToken, cancelOrder);
+
+router.post("/return-request/:id",authMiddleware.verifyToken,requestReturnOrder);
+
+
+router.post("/approveReturnOrder/:id",authMiddleware.requireAdmin,approveReturnOrder);
 
 
 

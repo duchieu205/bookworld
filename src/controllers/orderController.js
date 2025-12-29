@@ -4,7 +4,7 @@ import Variant from "../models/variant.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
-import Wallet from "./models/wallet.js";
+import Wallet from "../models/wallet.js";
 
 
 
@@ -250,6 +250,9 @@ export const approveReturnOrder = async (req, res) => {
 
   const order = await Order.findById(id);
   if (!order) throw createError(404, "Đơn hàng không tồn tại");
+	if (order.refunded_at) {
+	throw createError(400, "Đơn hàng đã được hoàn tiền trước đó");
+	}
 
   if (req.user.role !== "admin") {
     throw createError(403, "Chỉ admin mới được duyệt trả hàng");
@@ -259,13 +262,18 @@ export const approveReturnOrder = async (req, res) => {
     throw createError(400, "Đơn hàng không ở trạng thái chờ duyệt");
   }
 
-  order.status = "Trả hàng/Hoàn tiền thành công";
+ 
 
-  await order.save();
-
-  const wallet = await Wallet.findById(order.user_id);
-  wallet.balance += order.toal;
+  const wallet = await Wallet.findOne({user: order.user_id});
+  if (!wallet) {
+ 	 throw createError(404, "Ví người dùng không tồn tại");
+	}
+  wallet.balance += order.total;
   await wallet.save();
+
+	order.status = "Trả hàng/Hoàn tiền thành công";
+  order.refunded_at = new Date();
+  await order.save();
   // restore stock (sau khi duyệt)
   for (const item of order.items) {
     if (item.variant_id) {
@@ -342,5 +350,7 @@ export default {
 	getUserOrders,
 	getAllOrders,
 	updateOrderStatus,
-	cancelOrder
+	cancelOrder,
+	requestReturnOrder,
+	approveReturnOrder
 };

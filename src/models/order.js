@@ -38,7 +38,6 @@ const orderSchema = new Schema(
       ],
       default: "Chờ xử lý",
     },
-    delivered_at: Date,
     payment: {
       method: { type: String, default: "cod" },
       status: {
@@ -54,6 +53,9 @@ const orderSchema = new Schema(
     },
     shipping_address: { type: Object, default: {} },
     note: { type: String, default: "" },
+    delivered_at: Date,
+    refunded_at: Date
+
   },
   { timestamps: true }
 );
