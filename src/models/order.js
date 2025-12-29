@@ -71,7 +71,9 @@ const orderSchema = new Schema(
         "Đang giao hàng",
         "Giao hàng không thành công",
         "Giao hàng thành công",
-        "Trả hàng/Hoàn tiền",
+        "Đang yêu cầu Trả hàng/Hoàn tiền",
+        "Trả hàng/Hoàn tiền thành công",
+        "Hoàn tất"
       ],
       default: "Chờ xử lý",
     },
@@ -97,10 +99,14 @@ const orderSchema = new Schema(
     shipping_address: { type: Object, default: {} },
 
     note: { type: String, default: "" },
+    delivered_at: Date,
+    refunded_at: Date
+
   },
   { timestamps: true }
 );
 
+<<<<<<< HEAD
 /* =========================
    AUTO PUSH LOG KHI TẠO ĐƠN
 ========================= */
@@ -113,6 +119,9 @@ orderSchema.pre("save", function (next) {
   }
   next();
 });
+=======
+orderSchema.index({ status: 1, delivered_at: 1 })
+>>>>>>> 4288b598e657ca07bea02421733513faddee5ab6
 
 export default mongoose.models.Order ||
   mongoose.model("Order", orderSchema);

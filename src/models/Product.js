@@ -70,6 +70,18 @@ productSchema.pre("save", function (next) {
   next();
 });
 
+// virtual populate variants
+productSchema.virtual("variants", {
+  ref: "Variant",
+  localField: "_id",
+  foreignField: "product_id",
+});
+
+// để khi trả JSON có variants
+productSchema.set("toJSON", { virtuals: true });
+productSchema.set("toObject", { virtuals: true });
+
+
 const Product = mongoose.model("Product", productSchema);
 
 export default Product;

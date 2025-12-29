@@ -17,7 +17,9 @@ import authAdmin from "./authAdmin.js";
 import reviewRoutes from "./review.js";
 import uploadRoutes from "./upload.js";
 import vnpayRoutes from "./vnpay.js";
-
+import walletRoutes from "./wallet.js";
+import walletTransactionRoutes from "./walletTransaction.js";
+import withDrawalMethod from "./withDrawalMethod.js";
 const routes = Router();
 
 // API resource routes
@@ -35,6 +37,9 @@ routes.use("/vnpay", vnpayRoutes);
 // Review admin endpoints (approve/reject, list)
 routes.use("/reviews", reviewRoutes);
 routes.use("/upload",uploadRoutes);
+routes.use("/wallet", walletRoutes)
+routes.use("/walletTransaction", walletTransactionRoutes);
+routes.use("/withDrawalMethod", withDrawalMethod);
 
 
 

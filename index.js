@@ -13,6 +13,8 @@ import passport from "passport";
 import "./src/configs/passport.js";
 import authRoutes from "./src/routes/auth.js";
 import { startOrderExpireCron } from "./src/cron/orderExpire.Cron.js";
+import { startWalletTransactionExpireCron } from "./src/cron/walletTransactionExpire.Cron.js";
+import { completeOrderExpriceCron} from "./src/cron/completeOrderExpire.Cron.js";
 
 
 const app = express();
@@ -69,7 +71,8 @@ const server = app.listen(PORT, () => {
   console.log(`Server running: http://localhost:${PORT}`);
 });
 startOrderExpireCron();
-
+startWalletTransactionExpireCron();
+completeOrderExpriceCron();
 /* ================= PROCESS ERROR ================= */
 process.on("unhandledRejection", (error) => {
   console.error(error.message);
