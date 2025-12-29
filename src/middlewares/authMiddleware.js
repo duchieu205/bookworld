@@ -25,7 +25,7 @@ export const verifyToken = async (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Token hết hạn hoặc không hợp lệ" });
+    return res.status(401).json({ message: "Token không hợp lệ" });
   }
 };
 
@@ -50,10 +50,8 @@ export const requireAdmin = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Kiểm tra cả 'userId' hoặc 'id' tùy theo lúc bạn sign token ở file login
     const user = await User.findById(decoded.userId || decoded.id);
 
-    // LOG ĐỂ DEBUG - Hãy nhìn vào Terminal chạy Node.js của bạn
     console.log("--- KIỂM TRA QUYỀN ADMIN ---");
     console.log("Email:", user ? user.email : "Không tìm thấy user");
     console.log("Role trong DB:", user ? user.role : "N/A");
