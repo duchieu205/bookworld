@@ -13,7 +13,7 @@ export const getTotalRevenue = async (req, res) => {
 	const { startDate, endDate } = req.query;
 	
 	// Build match filter for date range
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	const matchFilter = { status: "Giao hàng thành công"};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
 		if (startDate) {
@@ -62,7 +62,7 @@ export const getRevenueByProduct = async (req, res) => {
 	const { startDate, endDate } = req.query;
 
 	// Build match filter for date range
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	const matchFilter = { status: "Giao hàng thành công",};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
 		if (startDate) {
@@ -114,7 +114,7 @@ export const getDailyRevenue = async (req, res) => {
 	const { startDate, endDate } = req.query;
 
 	// Build match filter for date range
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	const matchFilter = { status: "Giao hàng thành công"};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
 		if (startDate) {
@@ -210,7 +210,7 @@ export const getTopCustomers = async (req, res) => {
 	const { startDate, endDate, limit = 10 } = req.query;
 
 	// Build match filter
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	const matchFilter = { status: "Giao hàng thành công"};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
 		if (startDate) {
