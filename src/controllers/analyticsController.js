@@ -11,14 +11,19 @@ export const getTotalRevenue = async (req, res) => {
 	if (!req.user || req.user.role !== "admin") throw createError(403, "Chỉ admin mới xem thống kê");
 
 	const { startDate, endDate } = req.query;
-	
-	// Build match filter for date range
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+
+	// Build match filter for date range and accept legacy/missing payment
+	const matchFilter = {
+		status: "confirmed",
+		$or: [
+			{ "payment.status": "paid" },
+			{ "payment.status": { $exists: false } },
+			{ payment: { $exists: false } },
+		],
+	};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
-		if (startDate) {
-			matchFilter.createdAt.$gte = new Date(startDate);
-		}
+		if (startDate) matchFilter.createdAt.$gte = new Date(startDate);
 		if (endDate) {
 			const end = new Date(endDate);
 			end.setDate(end.getDate() + 1);
@@ -26,16 +31,18 @@ export const getTotalRevenue = async (req, res) => {
 		}
 	}
 
+	if (process.env.NODE_ENV === "development") console.log("Analytics getTotalRevenue matchFilter:", matchFilter);
+
 	const result = await Order.aggregate([
 		{ $match: matchFilter },
 		{
 			$group: {
 				_id: null,
-				totalRevenue: { $sum: "$total" },
+				totalRevenue: { $sum: { $ifNull: ["$total", "$totalPrice", 0] } },
 				totalOrders: { $sum: 1 },
-				totalSubtotal: { $sum: "$subtotal" },
-				totalShippingFee: { $sum: "$shipping_fee" },
-				totalDiscount: { $sum: "$discount.amount" },
+				totalSubtotal: { $sum: { $ifNull: ["$subtotal", 0] } },
+				totalShippingFee: { $sum: { $ifNull: ["$shipping_fee", "$shippingFee", 0] } },
+				totalDiscount: { $sum: { $ifNull: ["$discount.amount", "$discount", 0] } },
 			},
 		},
 	]);
@@ -61,19 +68,26 @@ export const getRevenueByProduct = async (req, res) => {
 
 	const { startDate, endDate } = req.query;
 
-	// Build match filter for date range
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	// Build match filter for date range and accept legacy/missing payment
+	const matchFilter = {
+		status: "confirmed",
+		$or: [
+			{ "payment.status": "paid" },
+			{ "payment.status": { $exists: false } },
+			{ payment: { $exists: false } },
+		],
+	};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
-		if (startDate) {
-			matchFilter.createdAt.$gte = new Date(startDate);
-		}
+		if (startDate) matchFilter.createdAt.$gte = new Date(startDate);
 		if (endDate) {
 			const end = new Date(endDate);
 			end.setDate(end.getDate() + 1);
 			matchFilter.createdAt.$lt = end;
 		}
 	}
+
+	if (process.env.NODE_ENV === "development") console.log("Analytics getRevenueByProduct matchFilter:", matchFilter);
 
 	const result = await Order.aggregate([
 		{ $match: matchFilter },
@@ -113,13 +127,18 @@ export const getDailyRevenue = async (req, res) => {
 
 	const { startDate, endDate } = req.query;
 
-	// Build match filter for date range
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	// Build match filter for date range and accept legacy/missing payment
+	const matchFilter = {
+		status: "confirmed",
+		$or: [
+			{ "payment.status": "paid" },
+			{ "payment.status": { $exists: false } },
+			{ payment: { $exists: false } },
+		],
+	};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
-		if (startDate) {
-			matchFilter.createdAt.$gte = new Date(startDate);
-		}
+		if (startDate) matchFilter.createdAt.$gte = new Date(startDate);
 		if (endDate) {
 			const end = new Date(endDate);
 			end.setDate(end.getDate() + 1);
@@ -127,18 +146,24 @@ export const getDailyRevenue = async (req, res) => {
 		}
 	}
 
+	if (process.env.NODE_ENV === "development") console.log("Analytics getDailyRevenue matchFilter:", matchFilter);
+
 	const result = await Order.aggregate([
 		{ $match: matchFilter },
+		{ $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
 		{
 			$group: {
-				_id: {
-					$dateToString: { format: "%Y-%m-%d", date: "$createdAt" },
+				_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+				totalRevenue: {
+					$sum: {
+						$ifNull: [ { $multiply: ["$items.price", "$items.quantity"] }, "$total", "$totalPrice", 0 ]
+					},
 				},
-				totalRevenue: { $sum: "$total" },
-				totalOrders: { $sum: 1 },
-				totalQuantity: { $sum: { $sum: "$items.quantity" } },
+				ordersSet: { $addToSet: "$_id" },
+				totalQuantity: { $sum: { $ifNull: ["$items.quantity", 0] } },
 			},
 		},
+		{ $project: { totalRevenue: 1, totalQuantity: 1, totalOrders: { $size: "$ordersSet" } } },
 		{ $sort: { _id: 1 } },
 	]);
 
@@ -177,7 +202,7 @@ export const getOrderStats = async (req, res) => {
 			$group: {
 				_id: "$status",
 				count: { $sum: 1 },
-				totalAmount: { $sum: "$total" },
+				totalAmount: { $sum: { $ifNull: ["$total", "$totalPrice", 0] } },
 			},
 		},
 		{ $sort: { count: -1 } },
@@ -210,18 +235,25 @@ export const getTopCustomers = async (req, res) => {
 	const { startDate, endDate, limit = 10 } = req.query;
 
 	// Build match filter
-	const matchFilter = { status: "confirmed", "payment.status": "paid" };
+	const matchFilter = {
+		status: "confirmed",
+		$or: [
+			{ "payment.status": "paid" },
+			{ "payment.status": { $exists: false } },
+			{ payment: { $exists: false } },
+		],
+	};
 	if (startDate || endDate) {
 		matchFilter.createdAt = {};
-		if (startDate) {
-			matchFilter.createdAt.$gte = new Date(startDate);
-		}
+		if (startDate) matchFilter.createdAt.$gte = new Date(startDate);
 		if (endDate) {
 			const end = new Date(endDate);
 			end.setDate(end.getDate() + 1);
 			matchFilter.createdAt.$lt = end;
 		}
 	}
+
+	if (process.env.NODE_ENV === "development") console.log("Analytics getTopCustomers matchFilter:", matchFilter);
 
 	const result = await Order.aggregate([
 		{ $match: matchFilter },
@@ -239,9 +271,9 @@ export const getTopCustomers = async (req, res) => {
 				_id: "$user_id",
 				userName: { $first: "$user_info.name" },
 				userEmail: { $first: "$user_info.email" },
-				totalSpent: { $sum: "$total" },
+				totalSpent: { $sum: { $ifNull: ["$total", "$totalPrice", 0] } },
 				totalOrders: { $sum: 1 },
-				averageOrderValue: { $avg: "$total" },
+				averageOrderValue: { $avg: { $ifNull: ["$total", "$totalPrice", 0] } },
 			},
 		},
 		{ $sort: { totalSpent: -1 } },
