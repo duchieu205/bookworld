@@ -23,7 +23,7 @@ const dateConversion = {
 /**
  * Get total revenue with optional date range filter
  * Query params: startDate (ISO string), endDate (ISO string)
- * Example: /api/analytics/revenue?startDate=2024-01-01&endDate=2024-12-31
+ * Example: /api/analytics/revenue?startDatcoe=2024-01-01&endDate=2024-12-31
  */
 export const getTotalRevenue = async (req, res) => {
 	if (!req.user || req.user.role !== "admin") throw createError(403, "Chỉ admin mới xem thống kê");
