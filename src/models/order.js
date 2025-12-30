@@ -106,7 +106,7 @@ const orderSchema = new Schema(
   { timestamps: true }
 );
 
-<<<<<<< HEAD
+
 /* =========================
    AUTO PUSH LOG KHI TẠO ĐƠN
 ========================= */
@@ -119,9 +119,7 @@ orderSchema.pre("save", function (next) {
   }
   next();
 });
-=======
-orderSchema.index({ status: 1, delivered_at: 1 })
->>>>>>> 4288b598e657ca07bea02421733513faddee5ab6
+
 
 export default mongoose.models.Order ||
   mongoose.model("Order", orderSchema);
