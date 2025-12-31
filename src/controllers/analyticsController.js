@@ -186,12 +186,12 @@ export const getDailyRevenue = async (req, res) => {
 		],
 	};
 	if (startDate || endDate) {
-		matchFilter.createdAt = {};
-		if (startDate) matchFilter.createdAt.$gte = new Date(startDate);
+		matchFilter.createdAtDate = {};
+		if (startDate) matchFilter.createdAtDate.$gte = new Date(startDate);
 		if (endDate) {
 			const end = new Date(endDate);
 			end.setDate(end.getDate() + 1);
-			matchFilter.createdAt.$lt = end;
+			matchFilter.createdAtDate.$lt = end;
 		}
 	}
 
@@ -201,7 +201,8 @@ export const getDailyRevenue = async (req, res) => {
 		{ $unwind: { path: "$items", preserveNullAndEmptyArrays: true } },
 		{
 			$group: {
-				_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAtDate" } },
+				// Group by date string in Vietnam timezone so 'today' is correct for local users
+				_id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAtDate", timezone: "+07:00" } },
 				totalRevenue: {
 					$sum: {
 						$ifNull: [ { $multiply: ["$items.price", "$items.quantity"] }, "$total", "$totalPrice", 0 ]
@@ -211,6 +212,7 @@ export const getDailyRevenue = async (req, res) => {
 				totalQuantity: { $sum: { $ifNull: ["$items.quantity", 0] } },
 			},
 		},
+
 		{ $project: { totalRevenue: 1, totalQuantity: 1, totalOrders: { $size: "$ordersSet" } } },
 		{ $sort: { _id: 1 } },
 	]);
@@ -389,7 +391,7 @@ export const getTopCustomers = async (req, res) => {
 
 	return res.success(result, "Top khách hàng theo chi tiêu", 200);
 };
-// aagit
+// adaaaa
 export default {
 	getTotalRevenue,
 	getRevenueByProduct,
