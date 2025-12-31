@@ -11,7 +11,8 @@ import {
   updateOrderStatus,
   cancelOrder,
   payOrder,
-  paymentWebhook
+  paymentWebhook,
+  refundOrderToWallet
 
 } from "../controllers/orderController.js";
 
@@ -65,10 +66,11 @@ router.put("/:id/status", authMiddleware.requireAdmin, handleAsync(updateOrderSt
 // Cancel order
 router.put("/:id", authMiddleware.verifyToken, handleAsync(cancelOrder));
 
+// Refund to wallet
+router.post("/:id/refund", authMiddleware.verifyToken, handleAsync(refundOrderToWallet));
 
 // Start payment for existing order
 router.post("/:id/pay", authMiddleware.verifyToken, handleAsync(payOrder));
-
 
 
 // Payment webhook
