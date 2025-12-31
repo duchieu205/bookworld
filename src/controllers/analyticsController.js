@@ -32,9 +32,10 @@ export const getTotalRevenue = async (req, res) => {
 
 	// Base match (DO NOT put createdAt here — we'll match on converted createdAtDate)
 	const baseMatch = {
-		status: "confirmed",
+		// Accept both English and Vietnamese status variants that imply a confirmed/completed order
+		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
 		$or: [
-			{ "payment.status": "paid" },
+			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
 			{ "payment.status": { $exists: false } },
 			{ payment: { $exists: false } },
 		],
@@ -86,12 +87,13 @@ export const getTotalRevenue = async (req, res) => {
 export const getRevenueByProduct = async (req, res) => {
 	if (!req.user || req.user.role !== "admin") throw createError(403, "Chỉ admin mới xem thống kê");
 
-	const { startDate, endDate } = req.query;
+	const { startDate, endDate, product } = req.query; // product can be id or name
 
 	const baseMatch = {
-		status: "confirmed",
+		// Accept both English and Vietnamese status variants that imply a confirmed/completed order
+		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
 		$or: [
-			{ "payment.status": "paid" },
+			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
 			{ "payment.status": { $exists: false } },
 			{ payment: { $exists: false } },
 		],
@@ -121,15 +123,40 @@ export const getRevenueByProduct = async (req, res) => {
 		},
 	});
 	pipeline.push({ $unwind: { path: "$product_info", preserveNullAndEmptyArrays: true } });
+
+	// Also lookup variant info so we can fallback to variant prices/names when product is missing
+	pipeline.push({
+		$lookup: {
+			from: "variants",
+			localField: "items.variant_id",
+			foreignField: "_id",
+			as: "variant_info",
+		},
+	});
+	pipeline.push({ $unwind: { path: "$variant_info", preserveNullAndEmptyArrays: true } });
+
+	// Add product filter when provided (accept id or name). Ignore string 'undefined'/'null' from front-end.
+	if (product && product !== "undefined" && product !== "null") {
+		const prodMatch = {
+			$or: [
+				{ $expr: { $eq: [{ $toString: "$items.product_id" }, product] } },
+				{ $expr: { $eq: [{ $toString: "$items.variant_id" }, product] } },
+				{ "product_info.name": { $regex: product, $options: "i" } },
+				{ "variant_info.name": { $regex: product, $options: "i" } },
+			],
+		};
+		pipeline.push({ $match: prodMatch });
+	}
+
 	pipeline.push({
 		$group: {
-			_id: "$items.product_id",
-			productName: { $first: "$product_info.name" },
-			productImage: { $first: "$product_info.images" },
-			totalQuantitySold: { $sum: "$items.quantity" },
-			totalRevenue: { $sum: { $multiply: ["$items.price", "$items.quantity"] } },
+			_id: { $ifNull: ["$items.product_id", "$items.variant_id"] },
+			productName: { $first: { $ifNull: ["$product_info.name", "$variant_info.name", "Không rõ"] } },
+			productImage: { $first: { $ifNull: ["$product_info.images", []] } },
+			totalQuantitySold: { $sum: { $ifNull: ["$items.quantity", 0] } },
+			totalRevenue: { $sum: { $multiply: [ { $ifNull: ["$items.price", "$variant_info.price", "$product_info.price", 0] }, { $ifNull: ["$items.quantity", 0] } ] } },
 			totalOrders: { $sum: 1 },
-			averagePrice: { $avg: "$items.price" },
+			averagePrice: { $avg: { $ifNull: ["$items.price", "$variant_info.price", "$product_info.price", 0] } },
 		},
 	});
 	pipeline.push({ $sort: { totalRevenue: -1 } });
@@ -150,9 +177,10 @@ export const getDailyRevenue = async (req, res) => {
 
 	// Build match filter for date range and accept legacy/missing payment
 	const matchFilter = {
-		status: "confirmed",
+		// Accept VN/EN statuses that should be counted in daily revenue
+		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
 		$or: [
-			{ "payment.status": "paid" },
+			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
 			{ "payment.status": { $exists: false } },
 			{ payment: { $exists: false } },
 		],
@@ -199,9 +227,46 @@ export const getOrderStats = async (req, res) => {
 
 	const { startDate, endDate, status } = req.query;
 
+	// Allow English status query (normalize to stored Vietnamese status when possible)
+	const engToVn = {
+		pending: "Chờ xử lý",
+		confirmed: "Đã xác nhận",
+		cancelled: "Đã hủy",
+		canceled: "Đã hủy",
+		completed: "Hoàn tất",
+		shipped: "Đang giao hàng",
+		returned: "Trả hàng/Hoàn tiền",
+		paid: "Đã thanh toán",
+		unpaid: "Chưa thanh toán",
+	};
+
+	// Translation table for results (supports both English keys and existing Vietnamese values)
+	const statusTranslations = {
+		pending: "Chờ xử lý",
+		confirmed: "Đã xác nhận",
+		cancelled: "Đã hủy",
+		canceled: "Đã hủy",
+		completed: "Hoàn tất",
+		shipped: "Đang giao hàng",
+		returned: "Trả hàng/Hoàn tiền",
+		paid: "Đã thanh toán",
+		unpaid: "Chưa thanh toán",
+		"Chưa thanh toán": "Chưa thanh toán",
+		"Chờ xử lý": "Chờ xử lý",
+		"Đã xác nhận": "Đã xác nhận",
+		"Đã hủy": "Đã hủy",
+		"Hoàn tất": "Hoàn tất",
+		"Đang giao hàng": "Đang giao hàng",
+		"Đã thanh toán": "Đã thanh toán",
+		"Trả hàng/Hoàn tiền": "Trả hàng/Hoàn tiền",
+	};
+
 	// Build base match (exclude createdAt)
 	const baseMatch = {};
-	if (status) baseMatch.status = status;
+	if (status) {
+		const normalized = status.toLowerCase();
+		baseMatch.status = engToVn[normalized] || status;
+	}
 
 	const statsPipeline = [dateConversion, { $match: baseMatch }];
 	if (startDate || endDate) {
@@ -226,6 +291,15 @@ export const getOrderStats = async (req, res) => {
 
 	const result = await Order.aggregate(statsPipeline);
 
+	// Map status values to Vietnamese labels for the response
+	const formatted = result.map((r) => {
+		const raw = r._id;
+		if (!raw) return { status: raw, statusLabel: raw, count: r.count, totalAmount: r.totalAmount };
+		const key = typeof raw === "string" ? raw : raw.toString();
+		const lookup = statusTranslations[key] || statusTranslations[key.toLowerCase()] || key;
+		return { status: key, statusLabel: lookup, count: r.count, totalAmount: r.totalAmount };
+	});
+
 	// count overall with the same date conversion
 	const countPipeline = [dateConversion, { $match: baseMatch }];
 	if (startDate || endDate) {
@@ -244,7 +318,7 @@ export const getOrderStats = async (req, res) => {
 
 	return res.success(
 		{
-			byStatus: result,
+			byStatus: formatted,
 			totalOrders: total,
 			dateRange: {
 				start: startDate || "N/A",
@@ -266,9 +340,10 @@ export const getTopCustomers = async (req, res) => {
 	const { startDate, endDate, limit = 10 } = req.query;
 
 	const baseMatch = {
-		status: "confirmed",
+		// Accept both English and Vietnamese status variants that imply a confirmed/completed order
+		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
 		$or: [
-			{ "payment.status": "paid" },
+			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
 			{ "payment.status": { $exists: false } },
 			{ payment: { $exists: false } },
 		],
