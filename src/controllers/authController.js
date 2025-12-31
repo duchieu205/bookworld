@@ -50,11 +50,15 @@ import createError from "../utils/createError.js";
 
             const { email, password } = req.body;
 
-
             try {
             const user = await User.findOne({ email });
             if (!user) return res.status(400).json({ message: 'Thông tin đăng nhập không đúng' });
-
+            
+            if (user.role?.toLowerCase() === "admin") {
+              return res.status(403).json({
+                message: "Không thể đăng nhập",
+              });
+            }
 
             const isMatch = await bcrypt.compare(password, user.password);
             if (!isMatch) return res.status(400).json({ message: 'Thông tin đăng nhập không đúng' });
