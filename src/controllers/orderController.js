@@ -5,6 +5,8 @@ import Discount from "../models/Discount.js";
 import User from "../models/User.js"; 
 import createError from "../utils/createError.js";
 import mongoose from "mongoose";
+import WalletTransaction from "../models/walletTransaction.model.js";
+import Wallet from "../models/wallet.js";
 
 /* =========================
    CREATE ORDER
@@ -377,3 +379,70 @@ export const paymentWebhook = async (req, res) => {
     message: "Webhook received",
   });
 };
+/* =========================
+   REFUND ORDER TO WALLET
+========================= */
+export const refundOrderToWallet = async (req, res) => {
+  const userId = req.user?._id;
+  if (!userId) throw createError(401, "Chưa đăng nhập");
+
+  const order = await Order.findById(req.params.id);
+  if (!order) throw createError(404, "Không tìm thấy đơn hàng");
+
+  // Check quyền sở hữu
+  if (String(order.user_id) !== String(userId)) {
+    throw createError(403, "Không có quyền thao tác đơn hàng này");
+  }
+
+  // Validate điều kiện hoàn tiền
+  if (order.status !== "Đã hủy") {
+    throw createError(400, "Chỉ hoàn tiền cho đơn hàng đã hủy");
+  }
+
+  if (order.payment.method === "cod") {
+    throw createError(400, "Đơn hàng COD không cần hoàn tiền");
+  }
+
+  if (order.payment.status !== "Đã thanh toán") {
+    throw createError(400, "Đơn hàng chưa thanh toán");
+  }
+
+  if (order.payment.refunded) {
+    throw createError(400, "Đơn hàng đã được hoàn tiền");
+  }
+
+  // Hoàn tiền vào ví
+  const wallet = await Wallet.findOne({ user: userId });
+  if (!wallet) throw createError(404, "Không tìm thấy ví");
+
+  wallet.balance += order.total;
+  await wallet.save();
+
+  // Tạo transaction history
+  await WalletTransaction.create({
+    user: userId,
+    wallet: wallet._id,
+    type: "Hoàn tiền",
+    amount: order.total,
+    status: "Thành công",
+    description: `Hoàn tiền đơn hàng #${order._id.toString().slice(-8)}`,
+    metadata: {
+      order_id: order._id,
+    }
+  });
+
+  // Cập nhật trạng thái đơn hàng
+  order.payment.refunded = true;
+  order.refunded_at = new Date();
+  await order.save();
+
+  res.json({
+    success: true,
+    message: `Đã hoàn ${order.total.toLocaleString()}đ về ví`,
+    data: { 
+      order, 
+      newBalance: wallet.balance 
+    }
+  });
+};
+

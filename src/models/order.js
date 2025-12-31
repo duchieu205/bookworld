@@ -88,6 +88,7 @@ const orderSchema = new Schema(
       method: { type: String, default: "cod" },
       status: { type: String, default: "Chưa thanh toán" },
       transaction_id: { type: String },
+      refunded: { type: Boolean, default: false },
     },
 
     expiredAt: {
@@ -101,11 +102,11 @@ const orderSchema = new Schema(
     note: { type: String, default: "" },
     delivered_at: Date,
     refunded_at: Date
+   
 
   },
   { timestamps: true }
 );
-
 
 /* =========================
    AUTO PUSH LOG KHI TẠO ĐƠN
@@ -119,7 +120,6 @@ orderSchema.pre("save", function (next) {
   }
   next();
 });
-
 
 export default mongoose.models.Order ||
   mongoose.model("Order", orderSchema);
