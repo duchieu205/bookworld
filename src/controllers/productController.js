@@ -5,7 +5,6 @@ import Variant from "../models/variant.js";
 import Category from "../models/Category.js";
 import Review from "../models/Review.js";
 
-
 export const createProduct = async (req, res) => {
   const body = req.body;
 
@@ -55,7 +54,6 @@ export const createProduct = async (req, res) => {
   }
 };
 
-
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {
   const { page = 1, limit = 10, search, category, status } = req.query;
@@ -74,37 +72,101 @@ export const getProducts = async (req, res) => {
   if (category) match.category = new mongoose.Types.ObjectId(category);
   if (status) match.status = status;
 
-  const pipeline = [
-    { $match: match },
+ const pipeline = [
+  { $match: match },
+{
+  $lookup: {
+    from: "reviews",
+    let: { productId: "$_id" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $and: [
+              { $eq: ["$product", "$$productId"] },
+              { $eq: ["$status", "approved"] }
+            ]
+          }
+        }
+      }
+    ],
+    as: "reviews"
+  }
+},
 
-    // join variant
-    {
-      $lookup: {
-        from: "variants",
-        localField: "_id",
-        foreignField: "product_id",
-        as: "variants",
-      },
+{
+  $addFields: {
+    averageRating: {
+      $cond: [
+        { $gt: [{ $size: "$reviews" }, 0] },
+        { $avg: "$reviews.rating" },
+        0
+      ]
     },
+    reviewCount: { $size: "$reviews" }
+  }
+},
 
-    // tính giá thấp nhất
-    {
-      $addFields: {
-        minPrice: { $min: "$variants.price" },
-      },
+  {
+    $lookup: {
+      from: "variants",
+      let: { productId: "$_id" },
+      pipeline: [
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: ["$product_id", "$$productId"] },
+                { $eq: ["$status", "active"] },
+                { $gt: ["$quantity", 0] }
+              ]
+            }
+          }
+        }
+      ],
+      as: "variants",
     },
+  },
 
-    // không cần trả variants
-    {
-      $project: {
-        variants: 0,
-      },
-    },
+  // ưu tiên bìa mềm
+  {
+    $addFields: {
+      softCover: {
+        $first: {
+          $filter: {
+            input: "$variants",
+            as: "v",
+            cond: { $eq: ["$$v.type", "Bìa mềm"] }
+          }
+        }
+      }
+    }
+  },
 
-    { $sort: { createdAt: -1 } },
-    { $skip: (pageNum - 1) * lim },
-    { $limit: lim },
-  ];
+  // giá hiển thị
+  {
+    $addFields: {
+      displayPrice: {
+        $cond: [
+          { $ifNull: ["$softCover.price", false] },
+          "$softCover.price",
+          { $min: "$variants.price" }
+        ]
+      }
+    }
+  },
+
+  {
+    $project: {
+      variants: 0,
+      softCover: 0
+    }
+  },
+
+  { $sort: { createdAt: -1 } },
+  { $skip: (pageNum - 1) * lim },
+  { $limit: lim },
+];
 
   const [items, totalArr] = await Promise.all([
     Product.aggregate(pipeline),
@@ -162,32 +224,31 @@ export const getProductById = async (req, res, next) => {
   }
 };
 
-
 // Update product
 export const updateProduct = async (req, res) => {
-	const { id } = req.params;
-	const updates = req.body;
+  const { id } = req.params;
+  const updates = req.body;
 
-	if (!mongoose.Types.ObjectId.isValid(id)) {
-		return res.status(400).json({ success: false, message: "Invalid product ID" });
-	}
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid product ID" });
+  }
 
-	const product = await Product.findByIdAndUpdate(id, updates, { new: true });
-	if (!product) throw createError(404, "Product not found");
-	return res.success(product, "Product updated", 200);
+  const product = await Product.findByIdAndUpdate(id, updates, { new: true });
+  if (!product) throw createError(404, "Product not found");
+  return res.success(product, "Product updated", 200);
 };
 
 // Delete product
 export const deleteProduct = async (req, res) => {
-	const { id } = req.params;
+  const { id } = req.params;
 
-	if (!mongoose.Types.ObjectId.isValid(id)) {
-		return res.status(400).json({ success: false, message: "Invalid product ID" });
-	}
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid product ID" });
+  }
 
-	const product = await Product.findByIdAndDelete(id);
-	if (!product) throw createError(404, "Product not found");
-	return res.success(product, "Product deleted", 200);
+  const product = await Product.findByIdAndDelete(id);
+  if (!product) throw createError(404, "Product not found");
+  return res.success(product, "Product deleted", 200);
 };
 
 export const searchProducts = async (req, res) => {
@@ -224,11 +285,11 @@ export const getRelatedProducts = async (req, res) => {
     return res.json({ data: related });
 };
 export default {
-	createProduct,
-	getProducts,
-	getProductById,
-	updateProduct,
-	deleteProduct,
-	searchProducts,
-	getRelatedProducts
+  createProduct,
+  getProducts,
+  getProductById,
+  updateProduct,
+  deleteProduct,
+  searchProducts,
+  getRelatedProducts
 };
