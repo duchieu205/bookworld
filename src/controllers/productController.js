@@ -58,10 +58,13 @@ export const createProduct = async (req, res) => {
 
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {
-  const { page = 1, limit = 10, search, category, status } = req.query;
+  const { page = 1, limit, search, category, status } = req.query;
 
-  const pageNum = Math.max(1, parseInt(page, 10));
-  const lim = Math.max(1, parseInt(limit, 10));
+  const pageNum = Math.max(1, parseInt(page));
+  const lim = limit !== undefined ? Number(limit) : null;
+  const usePagination = lim > 0;
+
+
 
   const match = {};
 
@@ -72,8 +75,10 @@ export const getProducts = async (req, res) => {
     ];
   }
   if (category) match.category = new mongoose.Types.ObjectId(category);
-  if (status) match.status = status;
 
+  if (status !== undefined) {
+    match.status = status === "true";
+  }
   const pipeline = [
     { $match: match },
 
@@ -102,8 +107,14 @@ export const getProducts = async (req, res) => {
     },
 
     { $sort: { createdAt: -1 } },
-    { $skip: (pageNum - 1) * lim },
-    { $limit: lim },
+    ...(usePagination
+    ? [
+        { $skip: (pageNum - 1) * lim },
+        { $limit: lim },
+      ]
+    : []),
+
+  
   ];
 
   const [items, totalArr] = await Promise.all([

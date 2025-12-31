@@ -10,9 +10,16 @@ import {
   getAllOrders,
   updateOrderStatus,
   cancelOrder,
-  requestReturnOrder,
-  approveReturnOrder
+  payOrder,
+  paymentWebhook,
+  refundOrderToWallet
+
 } from "../controllers/orderController.js";
+
+import {
+  createOrderWithVnPay,
+  vnpayReturn
+} from "../controllers/orderVnpayController.js";
 
 const router = Router();
 
@@ -29,38 +36,48 @@ router.get(
       "items.product_id": productId,
     });
 
-    return res.success(
-      { hasPurchased: !!order },
-      "Check purchase complete"
-    );
+    return res.status(200).json({
+      success: true,
+      message: "Check purchase complete",
+      data: { hasPurchased: !!order },
+    });
   })
 );
 
 /* ================= ORDER APIs ================= */
 
 // Create an order
-router.post("/", authMiddleware.verifyToken, createOrder);
+router.post("/", authMiddleware.verifyToken, handleAsync(createOrder));
 
 // Get orders for authenticated user
-router.get("/", authMiddleware.verifyToken, getUserOrders);
+router.get("/", authMiddleware.verifyToken, handleAsync(getUserOrders));
 
 // Admin: list all orders
-router.get("/admin/list", authMiddleware.requireAdmin, getAllOrders);
+
+router.get("/admin/list", authMiddleware.requireAdmin, handleAsync(getAllOrders));
 
 // Get order detail
-router.get("/:id", authMiddleware.verifyToken, getOrderById);
+router.get("/:id", authMiddleware.verifyToken, handleAsync(getOrderById));
 
 // Update order status (admin)
-router.put("/status/:id", authMiddleware.requireAdmin, updateOrderStatus);
+
+router.put("/:id/status", authMiddleware.requireAdmin, handleAsync(updateOrderStatus));
 
 // Cancel order
-router.put("/:id", authMiddleware.verifyToken, cancelOrder);
+router.put("/:id", authMiddleware.verifyToken, handleAsync(cancelOrder));
 
-router.post("/return-request/:id",authMiddleware.verifyToken,requestReturnOrder);
+// Refund to wallet
+router.post("/:id/refund", authMiddleware.verifyToken, handleAsync(refundOrderToWallet));
+
+// Start payment for existing order
+router.post("/:id/pay", authMiddleware.verifyToken, handleAsync(payOrder));
 
 
-router.post("/approveReturnOrder/:id",authMiddleware.requireAdmin,approveReturnOrder);
+// Payment webhook
+router.post("/webhook/payment", handleAsync(paymentWebhook));
 
-
+// VNPay specific routes
+router.post("/vnpay/create", authMiddleware.verifyToken, handleAsync(createOrderWithVnPay));
+router.get("/vnpay-return", vnpayReturn);
 
 export default router;

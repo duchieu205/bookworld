@@ -104,7 +104,7 @@ import Wallet from "../models/wallet.js";
 
         if (!isValid) {
           console.error("❌ Checksum không hợp lệ");
-          return res.redirect(`${process.env.FRONTEND_URL}/infor`);
+          return res.redirect(`${process.env.FRONTEND_URL}/user-profile`);
         }
 
         const { 
@@ -119,11 +119,11 @@ import Wallet from "../models/wallet.js";
           return res.status(404).json({ message: "Không tìm thấy giao dịch" });
         }
         if (Number(vnp_Amount) !== transaction.amount * 100) {
-            return res.redirect(`${process.env.FRONTEND_URL}/infor`);
+            return res.redirect(`${process.env.FRONTEND_URL}/user-profile`);
         }
 
         if (transaction.status !== "Chờ xử lý") {
-            return res.redirect(`${process.env.FRONTEND_URL}/infor`);
+            return res.redirect(`${process.env.FRONTEND_URL}/user-profile`);
         }
 
         if (vnp_ResponseCode === "00") {
@@ -136,13 +136,13 @@ import Wallet from "../models/wallet.js";
           transaction.status = "Thành công";
           await transaction.save();
 
-          return res.redirect(`${process.env.FRONTEND_URL}/infor`);
+          return res.redirect(`${process.env.FRONTEND_URL}/user-profile`);
         } 
         else {
             transaction.status = "Thất bại";
             await transaction.save();
 
-            return res.redirect(`${process.env.FRONTEND_URL}/infor`);
+            return res.redirect(`${process.env.FRONTEND_URL}/user-profile`);
       
         }
 
@@ -150,77 +150,75 @@ import Wallet from "../models/wallet.js";
         
       } catch (err) {
         console.error("❌ VNPay return fatal error:", err);
-        return res.redirect(`${process.env.FRONTEND_URL}/infor`);
+        return res.redirect(`${process.env.FRONTEND_URL}/user-profile`);
       }
     };
 
     
 
-    export const withdrawFromWallet = async (req, res) => {
-      const userId = req.user?._id;
-      const { amount, withdrawalMethodId } = req.body;
+  export const withdrawFromWallet = async (req, res) => {
+  const userId = req.user?._id;
+  const { amount, withdrawalMethodId } = req.body;
 
-      if (!amount || amount <= 0)
-          return res.status(400).json({ message: "Số tiền không hợp lệ" });
+  if (!amount || amount <= 0)
+    return res.status(400).json({ message: "Số tiền không hợp lệ" });
 
-      let wallet = await Wallet.findOne({ user: userId });
-      if (!wallet)
-          return res.status(404).json({ message: "Ví không tồn tại" });
+  const wallet = await Wallet.findOne({ user: userId });
+  if (!wallet)
+    return res.status(404).json({ message: "Ví không tồn tại" });
 
-      if (wallet.balance < amount)
-          return res.status(400).json({ message: "Số dư không đủ" });
+  if (wallet.balance < amount)
+    return res.status(400).json({ message: "Số dư không đủ" });
 
-      const updatedWallet = await Wallet.findOneAndUpdate(
-        { _id: wallet, balance: { $gte: amount } },
-        { $inc: { balance: -amount } }
-      );
-      if (!updatedWallet)
-        throw createError(400, "Tạo lệnh thất bại");
-      // tạo transaction rút tiền (PENDING)
-      const transaction = await WalletTransaction.create({
-          wallet,
-          user: userId,
-          type: "Rút tiền",
-          status: "Chờ xử lý",
-          amount,
-          withdrawalMethod: withdrawalMethodId,
-      });
+  const transaction = await WalletTransaction.create({
+    wallet: wallet._id,
+    user: userId,
+    type: "Rút tiền",
+    status: "Chờ xử lý",
+    amount,
+    withdrawalMethod: withdrawalMethodId,
+  });
 
-      return res.status(201).json({
-          success: true,
-          message: "Yêu cầu rút tiền đã được tạo",
-          transaction,
-      });
-    };
-
-    export const approveWithdraw = async (req, res) => {
-        const { transactionId } = req.params;
-        console.log("transactionId =", transactionId);
-
-        const transaction = await WalletTransaction.findById(transactionId);
-        
-        console.log("TYPE =", transaction);
-        if (!transaction) {
-          return res.status(404).json({ message: "Không tìm thấy giao dịch" });
-        }
-
-        if (transaction.type !== "Rút tiền") {
-          return res.status(400).json({ message: "Giao dịch không hợp lệ" });
-        }
-
-        if (transaction.status !== "Chờ xử lý")
-            return res.status(400).json({ message: "Giao dịch đã xử lý" });
-
-        const wallet = await Wallet.findById(transaction.wallet);
-        if (wallet.balance < transaction.amount)
-            return res.status(400).json({ message: "Số dư không đủ" });
+  return res.status(201).json({
+    success: true,
+    message: "Yêu cầu rút tiền đã được gửi, chờ admin duyệt",
+    transaction,
+  });
+};
 
 
-        transaction.status = "Thành công";
-        await transaction.save();
+   export const approveWithdraw = async (req, res) => {
+  const { transactionId } = req.params;
 
-        res.json({ success: true, message: "Duyệt lệnh thành công" });
-    };
+  const transaction = await WalletTransaction.findById(transactionId);
+  if (!transaction)
+    return res.status(404).json({ message: "Không tìm thấy giao dịch" });
+
+  if (transaction.type !== "Rút tiền")
+    return res.status(400).json({ message: "Giao dịch không hợp lệ" });
+
+  if (transaction.status !== "Chờ xử lý")
+    return res.status(400).json({ message: "Giao dịch đã được xử lý" });
+
+  const wallet = await Wallet.findById(transaction.wallet);
+  if (!wallet)
+    return res.status(404).json({ message: "Không tìm thấy ví" });
+
+  if (wallet.balance < transaction.amount)
+    return res.status(400).json({ message: "Số dư không đủ để duyệt rút" });
+
+  
+  wallet.balance -= transaction.amount;
+  await wallet.save();
+
+  transaction.status = "Thành công";
+  await transaction.save();
+
+  return res.json({
+    success: true,
+    message: "Duyệt rút tiền thành công",
+  });
+};
 
     export const getAllWalletTransactions = async (req, res) => {
       const {
@@ -273,6 +271,34 @@ import Wallet from "../models/wallet.js";
         data,
       });
     };
+export const getMyWalletTransactions = async (req, res) => {
+  const userId = req.user._id;
+
+  const { page = 1, limit = 10 } = req.query;
+
+  const filter = { user: userId };
+
+  const skip = (page - 1) * limit;
+
+  const [data, total] = await Promise.all([
+    WalletTransaction.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit)),
+    WalletTransaction.countDocuments(filter),
+  ]);
+
+  return res.json({
+    success: true,
+    data,
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
+};
 
 
 
@@ -281,5 +307,6 @@ export default {
     vnpayReturn,
     withdrawFromWallet,
     approveWithdraw,
-    getAllWalletTransactions
+    getAllWalletTransactions,
+    getMyWalletTransactions
 }
