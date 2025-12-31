@@ -55,6 +55,10 @@ const productSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    defaultVariant: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Variant",
+}
   },
   {
     timestamps: true,
@@ -62,7 +66,7 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-// ⭐ Tự động tạo slug từ name (trước khi lưu)
+// Tự động tạo slug từ name (trước khi lưu)
 productSchema.pre("save", function (next) {
   if (!this.slug) {
     this.slug = slugify(this.name, { lower: true, strict: true });
@@ -80,7 +84,6 @@ productSchema.virtual("variants", {
 // để khi trả JSON có variants
 productSchema.set("toJSON", { virtuals: true });
 productSchema.set("toObject", { virtuals: true });
-
 
 const Product = mongoose.model("Product", productSchema);
 

@@ -31,8 +31,8 @@ import Wallet from "../models/wallet.js";
       const userId = req.user && req.user._id;
       if (!userId) throw createError(401, "Chưa đăng nhập");
       const {amount} = req.body;
-      if (!amount || amount <= 0) {
-        return res.status(400).json({ message: "Số tiền không hợp lệ" });
+      if (!amount || amount <= 5000) {
+        return res.status(400).json({ message: "Vui lòng nạp trên 5.000Đ" });
       }   
       let wallet = await Wallet.findOne({ user: userId });
       if (!wallet) {
