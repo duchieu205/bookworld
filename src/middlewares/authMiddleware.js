@@ -21,9 +21,7 @@ export const verifyToken = async (req, res, next) => {
 
     if (!user)
       return res.status(401).json({ message: "Token không hợp lệ" });
-    if (user.role?.toLowerCase() === "admin") {
-      return res.status(401).json({ message: "Không thể đăng nhập" });
-    }
+  
     req.user = user;
     next();
   } catch (err) {

@@ -177,6 +177,7 @@ import Wallet from "../models/wallet.js";
     status: "Chờ xử lý",
     amount,
     withdrawalMethod: withdrawalMethodId,
+    description: "Rút tiền từ ví"
   });
 
   return res.status(201).json({

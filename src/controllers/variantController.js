@@ -52,7 +52,7 @@ export const createVariant = async (req, res, next) => {
 
 // Get list of variants
 export const getVariants = async (req, res) => {
-  const { product_id, page = 1, limit = 20 } = req.query;
+  const { product_id, page = 1, limit } = req.query;
   const query = {};
 
   if (product_id) {

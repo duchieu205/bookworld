@@ -4,7 +4,7 @@ import Variant from "../models/variant.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
 import Wallet from "../models/wallet.js";
-
+import WalletTransaction from "../models/walletTransaction.model.js";
 
 
 export const createOrderWithWallet = async (req, res) => {
@@ -109,6 +109,16 @@ export const createOrderWithWallet = async (req, res) => {
         { $inc: { balance: -total } },
         { new: true }
     );
+
+    await WalletTransaction.create({
+        wallet: wallet._id,
+        user: userId,
+        type: "Thanh toán",
+        status: "Thành công",
+        amount: order.total,
+        description: `Thanh toán hóa đơn ${order._id}`
+      });
+    
 
     if (!updatedWallet) {
         throw createError(400, "Số dư không đủ");

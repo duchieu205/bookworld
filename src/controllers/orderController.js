@@ -321,6 +321,23 @@ export const cancelOrder = async (req, res) => {
     throw createError(403, "Không có quyền hủy đơn");
   }
 
+
+  if(order.payment.method === "vnpay" || order.payment.method === "wallet") {
+  
+      const userId = req.user && req.user._id;
+      const wallet = await Wallet.findOne({user: userId});
+      await WalletTransaction.create({
+        wallet: wallet._id,
+        user: userId,
+        type: "Hoàn tiền",
+        status: "Thành công",
+        amount: order.total,
+        description: `Hoàn tiền từ đơn hàng ${order._id}`
+      });
+      wallet.balance += order.total;
+      await wallet.save()
+  }
+
   order.status = "Đã hủy";
   order.payment.status = "Đã hủy";
 
