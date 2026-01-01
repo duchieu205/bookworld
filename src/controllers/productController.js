@@ -56,13 +56,11 @@ export const createProduct = async (req, res) => {
 
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {
-  const { page = 1, limit, search, category, status } = req.query;
+  const { page = 1, limit, search, category, status, sort, minPrice, maxPrice, minRating } = req.query;
 
   const pageNum = Math.max(1, parseInt(page));
   const lim = limit !== undefined ? Number(limit) : null;
   const usePagination = lim > 0;
-
-
 
   const match = {};
 
@@ -74,110 +72,203 @@ export const getProducts = async (req, res) => {
   }
   if (category) match.category = new mongoose.Types.ObjectId(category);
 
- const pipeline = [
-  { $match: match },
-{
-  $lookup: {
-    from: "reviews",
-    let: { productId: "$_id" },
-    pipeline: [
-      {
-        $match: {
-          $expr: {
-            $and: [
-              { $eq: ["$product", "$$productId"] },
-              { $eq: ["$status", "approved"] }
-            ]
-          }
-        }
-      }
-    ],
-    as: "reviews"
-  }
-},
-
-{
-  $addFields: {
-    averageRating: {
-      $cond: [
-        { $gt: [{ $size: "$reviews" }, 0] },
-        { $avg: "$reviews.rating" },
-        0
-      ]
-    },
-    reviewCount: { $size: "$reviews" }
-  }
-},
-
-  {
-    $lookup: {
-      from: "variants",
-      let: { productId: "$_id" },
-      pipeline: [
-        {
-          $match: {
-            $expr: {
-              $and: [
-                { $eq: ["$product_id", "$$productId"] },
-                { $eq: ["$status", "active"] },
-                { $gt: ["$quantity", 0] }
-              ]
+  const pipeline = [
+    { $match: match },
+    
+    // Lookup reviews
+    {
+      $lookup: {
+        from: "reviews",
+        let: { productId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$product", "$$productId"] },
+                  { $eq: ["$status", "approved"] }
+                ]
+              }
             }
           }
-        }
-      ],
-      as: "variants",
+        ],
+        as: "reviews"
+      }
     },
-  },
 
-  // ưu tiên bìa mềm
-  {
-    $addFields: {
-      softCover: {
-        $first: {
-          $filter: {
-            input: "$variants",
-            as: "v",
-            cond: { $eq: ["$$v.type", "Bìa mềm"] }
+    // Add averageRating và reviewCount
+    {
+      $addFields: {
+        averageRating: {
+          $cond: [
+            { $gt: [{ $size: "$reviews" }, 0] },
+            { $avg: "$reviews.rating" },
+            0
+          ]
+        },
+        reviewCount: { $size: "$reviews" }
+      }
+    },
+
+    // Lookup variants
+    {
+      $lookup: {
+        from: "variants",
+        let: { productId: "$_id" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$product_id", "$$productId"] },
+                  { $eq: ["$status", "active"] },
+                  { $gt: ["$quantity", 0] }
+                ]
+              }
+            }
           }
+        ],
+        as: "variants",
+      },
+    },
+
+    // Tính giá hiển thị
+    {
+      $addFields: {
+        softCover: {
+          $first: {
+            $filter: {
+              input: "$variants",
+              as: "v",
+              cond: { $eq: ["$$v.type", "Bìa mềm"] }
+            }
+          }
+        },
+        minVariantPrice: {
+          $cond: [
+            { $gt: [{ $size: "$variants" }, 0] },
+            { $min: "$variants.price" },
+            null
+          ]
         }
       }
-    }
-  },
+    },
 
-  // giá hiển thị
+    {
+      $addFields: {
+        displayPrice: {
+          $cond: [
+            { $gt: ["$softCover.price", 0] },
+            "$softCover.price",
+            "$minVariantPrice"
+          ]
+        }
+      }
+    },
+
+    // FILTER THEO GIÁ (sau khi đã tính displayPrice)
   {
-    $addFields: {
-      displayPrice: {
-        $cond: [
-          { $ifNull: ["$softCover.price", false] },
-          "$softCover.price",
-          { $min: "$variants.price" }
+  $match: {
+    $or: [
+      { minVariantPrice: null },
+      {
+        $and: [
+          { minVariantPrice: { $ne: null } },
+          { minVariantPrice: { $gte: minPrice ? Number(minPrice) : 0 } },
+          { minVariantPrice: { $lte: maxPrice ? Number(maxPrice) : 999999999 } }
         ]
       }
-    }
-  },
+    ]
+  }
+},
 
-  {
-    $project: {
-      variants: 0,
-      softCover: 0
-    }
-  },
+    // FILTER THEO RATING
+    ...(minRating ? [{
+      $match: {
+        averageRating: { $gte: Number(minRating) }
+      }
+    }] : []),
 
-  { $sort: { createdAt: -1 } },
-   ...(usePagination
-    ? [
-        { $skip: (pageNum - 1) * lim },
-        { $limit: lim },
-      ]
-    : []),
-];
+    // Remove temporary fields
+    {
+      $project: {
+        reviews: 0,
+        variants: 0,
+        softCover: 0,
+        minVariantPrice: 0
+      }
+    },
+  ];
 
+  // XÁC ĐỊNH SORT
+  let sortOption = { createdAt: -1, _id: 1 };
+  
+  if (sort === "price-asc") sortOption = { displayPrice: 1, _id: 1 };
+  else if (sort === "price-desc") sortOption = { displayPrice: -1, _id: 1 };
+  else if (sort === "rating") sortOption = { averageRating: -1, reviewCount: -1, _id: 1 };
+  else if (sort === "name-asc") sortOption = { name: 1, _id: 1 };
+  else if (sort === "newest") sortOption = { createdAt: -1, _id: 1 };
+
+  // Add sort + pagination
+  pipeline.push(
+    { $sort: sortOption },
+    ...(usePagination ? [
+      { $skip: (pageNum - 1) * lim },
+      { $limit: lim },
+    ] : [])
+  );
+
+  // Execute
   const [items, totalArr] = await Promise.all([
     Product.aggregate(pipeline),
     Product.aggregate([
       { $match: match },
+      {
+        $lookup: {
+          from: "variants",
+          let: { productId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$product_id", "$$productId"] },
+                    { $eq: ["$status", "active"] },
+                    { $gt: ["$quantity", 0] }
+                  ]
+                }
+              }
+            }
+          ],
+          as: "variants",
+        },
+      },
+      {
+        $addFields: {
+          minVariantPrice: {
+            $cond: [
+              { $gt: [{ $size: "$variants" }, 0] },
+              { $min: "$variants.price" },
+             null
+            ]
+          }
+        }
+      },
+      // FILTER THEO GIÁ
+{
+  $match: {
+    $or: [
+      { displayPrice: null },
+      {
+        $and: [
+          { displayPrice: { $ne: null } },
+          { displayPrice: { $gte: minPrice ? Number(minPrice) : 0 } },
+          { displayPrice: { $lte: maxPrice ? Number(maxPrice) : 999999999 } }
+        ]
+      }
+    ]
+  }
+},
       { $count: "total" },
     ]),
   ]);
