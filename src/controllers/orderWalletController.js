@@ -151,7 +151,7 @@ export const getWalletUser = async(req, res ) => {
         if (!userId) throw createError(401, "Chưa đăng nhập");
     const wallet = await Wallet.findOne({user: userId});
     if (!wallet) {
-        throw createError(400, "Không thể lấy thông tin số dư ví");
+             throw createError(400, "Không thể lấy thông tin số dư ví");
     }
     return res.status(200).json({
         message: "Lấy thông tin số dư ví thành công",

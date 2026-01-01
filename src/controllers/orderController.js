@@ -230,79 +230,92 @@ export const getAllOrders = async (req, res) => {
    UPDATE ORDER STATUS (ADMIN)
 ========================= */
 export const updateOrderStatus = async (req, res) => {
-  if (req.user?.role !== "admin") {
-    throw createError(403, "Chỉ admin mới cập nhật trạng thái");
-  }
-
-  const { status, note } = req.body;
-  if (!status) throw createError(400, "Thiếu trạng thái");
-
-  const order = await Order.findById(req.params.id);
-  if (!order) throw createError(404, "Đơn hàng không tồn tại");
-
-  const validTransitions = {
-    "Chờ xử lý": ["Đã xác nhận", "Đã hủy"],
-    "Đã xác nhận": ["Đang chuẩn bị hàng", "Đã hủy"],
-    "Đang chuẩn bị hàng": ["Đang giao hàng", "Đã hủy"],
-    "Đang giao hàng": [
-      "Giao hàng thành công",
-      "Giao hàng không thành công",
-    ],
-    "Giao hàng không thành công": ["Trả hàng/Hoàn tiền"],
-    "Giao hàng thành công": ["Trả hàng/Hoàn tiền"],
-    "Trả hàng/Hoàn tiền": [],
-    "Đã hủy": [],
-  };
-
-  const allowed = validTransitions[order.status] || [];
-  if (!allowed.includes(status)) {
-    throw createError(
-      400,
-      `Không thể chuyển từ "${order.status}" sang "${status}"`
-    );
-  }
-
-  // VNPay phải thanh toán trước khi giao
-  if (
-    status === "Đang giao hàng" &&
-    order.payment.method === "vnpay" &&
-    order.payment.status !== "Đã thanh toán"
-  ) {
-    throw createError(400, "Đơn hàng chưa thanh toán");
-  }
-
-  // COD: giao thành công -> đã thanh toán
-  if (status === "Giao hàng thành công" && order.payment.method === "cod") {
-    order.payment.status = "Đã thanh toán";
-  }
-
-  // Hoàn kho khi hủy / hoàn tiền
-  if (["Đã hủy", "Trả hàng/Hoàn tiền"].includes(status)) {
-    for (const item of order.items) {
-      if (item.variant_id) {
-        await Variant.findByIdAndUpdate(item.variant_id, {
-          $inc: { quantity: item.quantity },
-        });
-      }
+  try {
+    if (req.user?.role !== "admin") {
+      throw createError(403, "Chỉ admin mới cập nhật trạng thái");
     }
-    order.payment.status = "Đã hủy";
+
+    const { status, note } = req.body;
+    if (!status) throw createError(400, "Thiếu trạng thái");
+
+    const order = await Order.findById(req.params.id);
+    if (!order) throw createError(404, "Đơn hàng không tồn tại");
+
+    const oldStatus = order.status;
+
+    const validTransitions = {
+      "Chờ xử lý": ["Đã xác nhận"],
+      "Đã xác nhận": ["Đang chuẩn bị hàng"],
+      "Đang chuẩn bị hàng": ["Đang giao hàng"],
+      "Đang giao hàng": [
+        "Giao hàng không thành công",
+        "Giao hàng thành công",
+      ],
+      "Giao hàng không thành công": [, "Đang giao hàng", "Giao hàng thành công"],
+      "Giao hàng thành công": [],
+    };
+
+    const allowedNextStatuses = validTransitions[oldStatus] || [];
+
+    if (!allowedNextStatuses.includes(status)) {
+      throw createError(
+        400,
+        `Không thể chuyển từ "${oldStatus}" sang "${status}"`
+      );
+    }
+
+    if (oldStatus === "Giao hàng không thành công" && status === "Đang giao hàng") {
+      const hasReturned = order.status_logs.some(
+        (log) => log.status === "Đang giao hàng"
+      );
+
+  if (hasReturned) {
+    throw createError(400, "Không thể quay lại giao hàng lần nữa");
   }
+}
+    // VNPay: phải thanh toán trước khi giao
+    if (
+      status === "Đang giao hàng" &&
+      order.payment.method === "vnpay" &&
+      order.payment.status !== "Đã thanh toán"
+    ) {
+      throw createError(400, "Đơn hàng chưa thanh toán");
+    }
 
-  order.status = status;
-  if (note) {
-    order.note = order.note
-      ? `${order.note}\n[Admin] ${note}`
-      : `[Admin] ${note}`;
+    // COD: giao thành công → đã thanh toán
+    if (
+      status === "Giao hàng thành công" &&
+      order.payment.method === "cod"
+    ) {
+      order.payment.status = "Đã thanh toán";
+    }
+
+
+    order.status = status;
+
+    order.status_logs.push({
+      status,
+      note: note || `Chuyển trạng thái từ "${oldStatus}"`,
+      updatedBy: req.user._id,
+    });
+
+    await order.save();
+
+    res.json({
+      success: true,
+      message: "Cập nhật trạng thái thành công",
+      data: order,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(err.status || 500).json({
+      success: false,
+      message: err.message || "Lỗi server",
+    });
   }
-
-  await order.save();
-
-  res.json({
-    success: true,
-    message: "Cập nhật trạng thái thành công",
-    data: order,
-  });
 };
+
+
 
 /* =========================
    CANCEL ORDER (USER / ADMIN)
