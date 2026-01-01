@@ -10,8 +10,8 @@ import {
   getAllOrders,
   updateOrderStatus,
   cancelOrder,
-  payOrder,
-  paymentWebhook,
+  requestReturnOrder,
+  approveReturnOrder,
   refundOrderToWallet
 
 } from "../controllers/orderController.js";
@@ -70,12 +70,14 @@ router.put("/:id", authMiddleware.verifyToken, handleAsync(cancelOrder));
 router.post("/:id/refund", authMiddleware.verifyToken, handleAsync(refundOrderToWallet));
 
 // Start payment for existing order
-router.post("/:id/pay", authMiddleware.verifyToken, handleAsync(payOrder));
 
 
-// Payment webhook
-router.post("/webhook/payment", handleAsync(paymentWebhook));
 
+
+router.post("/return-request/:orderId",authMiddleware.verifyToken,requestReturnOrder);
+
+
+router.post("/approveReturnOrder/:orderId",authMiddleware.requireAdmin,approveReturnOrder);
 // VNPay specific routes
 router.post("/vnpay/create", authMiddleware.verifyToken, handleAsync(createOrderWithVnPay));
 router.get("/vnpay-return", vnpayReturn);
