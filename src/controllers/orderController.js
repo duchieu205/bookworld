@@ -290,7 +290,6 @@ export const updateOrderStatus = async (req, res) => {
     const oldStatus = order.status;
 
     const validTransitions = {
-<<<<<<< HEAD
       "Chờ xử lý": ["Đã xác nhận"],
       "Đã xác nhận": ["Đang chuẩn bị hàng"],
       "Đang chuẩn bị hàng": ["Đang giao hàng"],
@@ -300,43 +299,30 @@ export const updateOrderStatus = async (req, res) => {
       ],
       "Giao hàng không thành công": ["Đang giao hàng", "Giao hàng thành công"],
       "Giao hàng thành công": [],
-=======
-      "Chờ xử lý": ["Đã xác nhận", "Đã hủy"],
-      "Đã xác nhận": ["Đang chuẩn bị hàng", "Đã hủy"],
-      "Đang chuẩn bị hàng": ["Đang giao hàng", "Đã hủy"],
-      "Đang giao hàng": ["Giao hàng thành công", "Giao hàng không thành công", "Đã hủy"],
-      "Giao hàng không thành công": ["Đang giao hàng", "Trả hàng/Hoàn tiền", "Đã hủy"],
-      "Giao hàng thành công": ["Trả hàng/Hoàn tiền", "Đã hủy"],
-      "Trả hàng/Hoàn tiền": [],
-      "Đã hủy": [],
->>>>>>> e0109052c243245169a81862d5c3007ee3f75d2e
     };
 
+    
+
+    if (oldStatus === "Giao hàng không thành công") {
+      const failCount = order.status_logs.filter(
+        (log) => log.status === "Giao hàng không thành công"
+      ).length;
+
+      if (failCount >= 2) {
+        throw createError(
+          400,
+          "Đơn hàng đã giao thất bại 2 lần, hệ thống sẽ tự động huỷ và hoàn tiền"
+        );
+      }
+    }
     const allowed = validTransitions[oldStatus] || [];
     if (!allowed.includes(status)) throw createError(400, `Không thể chuyển từ "${oldStatus}" sang "${status}"`);
-
-    if (oldStatus === "Giao hàng không thành công" && status === "Đang giao hàng") {
-<<<<<<< HEAD
-      const retryCount = order.status_logs.filter(
-        (log) => log.status === "Giao hàng không thành công").length;
-
-      if (retryCount >= 2) {
-        throw createError(400, "Đơn hàng chỉ được giao lại tối đa 2 lần");
-      }
-}
     // VNPay: phải thanh toán trước khi giao
     if (
       status === "Đang giao hàng" &&
       order.payment.method === "vnpay" &&
       order.payment.status !== "Đã thanh toán"
     ) {
-=======
-      const hasReturned = Array.isArray(order.status_logs) && order.status_logs.some(log => log.status === "Đang giao hàng");
-      if (hasReturned) throw createError(400, "Không thể quay lại giao hàng lần nữa");
-    }
-
-    if (status === "Đang giao hàng" && order.payment.method === "vnpay" && order.payment.status !== "Đã thanh toán") {
->>>>>>> e0109052c243245169a81862d5c3007ee3f75d2e
       throw createError(400, "Đơn hàng chưa thanh toán");
     }
 
