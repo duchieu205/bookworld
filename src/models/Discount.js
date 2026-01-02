@@ -5,6 +5,10 @@ const DiscountSchema = new mongoose.Schema({
   type: { type: String, default: "percent" },
   value: { type: Number, required: true },
 
+  // optional UI fields
+  title: { type: String },
+  description: { type: String },
+
   minOrderValue: { type: Number, default: 0 },
   startsAt: { type: Date, default: Date.now },
   endsAt: { type: Date },
