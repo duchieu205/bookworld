@@ -251,7 +251,7 @@ export const updateOrderStatus = async (req, res) => {
         "Giao hàng không thành công",
         "Giao hàng thành công",
       ],
-      "Giao hàng không thành công": [, "Đang giao hàng", "Giao hàng thành công"],
+      "Giao hàng không thành công": ["Đang giao hàng", "Giao hàng thành công"],
       "Giao hàng thành công": [],
     };
 
@@ -265,13 +265,12 @@ export const updateOrderStatus = async (req, res) => {
     }
 
     if (oldStatus === "Giao hàng không thành công" && status === "Đang giao hàng") {
-      const hasReturned = order.status_logs.some(
-        (log) => log.status === "Đang giao hàng"
-      );
+      const retryCount = order.status_logs.filter(
+        (log) => log.status === "Giao hàng không thành công").length;
 
-  if (hasReturned) {
-    throw createError(400, "Không thể quay lại giao hàng lần nữa");
-  }
+      if (retryCount >= 2) {
+        throw createError(400, "Đơn hàng chỉ được giao lại tối đa 2 lần");
+      }
 }
     // VNPay: phải thanh toán trước khi giao
     if (

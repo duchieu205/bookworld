@@ -21,14 +21,6 @@ const statusLogSchema = new Schema(
   {
     status: {
       type: String,
-      enum: [
-        "Chờ xử lý",
-        "Đã xác nhận",
-        "Đang chuẩn bị hàng",
-        "Đang giao hàng",
-        "Giao hàng không thành công",
-        "Giao hàng thành công",
-      ],
       required: true,
     },
     note: { type: String, default: "" },
@@ -71,12 +63,13 @@ const orderSchema = new Schema(
         "Giao hàng thành công",
         "Đang yêu cầu Trả hàng/Hoàn tiền",
         "Trả hàng/Hoàn tiền thành công",
+        "Huỷ & hoàn tiền do giao hàng thất bại",
         "Hoàn tất"
       ],
       default: "Chờ xử lý",
     },
+    auto_cancelled: { type: Boolean, default: false },
 
-    /* ===== TIMELINE ===== */
     status_logs: {
       type: [statusLogSchema],
       default: [],
