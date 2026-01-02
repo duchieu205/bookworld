@@ -22,14 +22,12 @@ const statusLogSchema = new Schema(
     status: {
       type: String,
       enum: [
-        "Đã hủy",
         "Chờ xử lý",
         "Đã xác nhận",
         "Đang chuẩn bị hàng",
         "Đang giao hàng",
         "Giao hàng không thành công",
         "Giao hàng thành công",
-        "Trả hàng/Hoàn tiền",
       ],
       required: true,
     },

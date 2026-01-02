@@ -159,11 +159,19 @@
     // Xóa category
     export const deleteCategory = async (req, res) => {
         const { id } = req.params;
-        
-        const category = await Category.findByIdAndDelete(id);
+
+        const category = await Category.findById(id);
         if (!category) {
             throw createError(404, "Không tìm thấy danh mục");
         }
+
+        const productExists = await Product.exists({ category: id });
+
+        if (productExists) {
+            throw createError(400,"Không thể xóa danh mục vì vẫn còn sản phẩm thuộc danh mục này");
+        }
+
+        await Category.findByIdAndDelete(id);
 
         return res.success(category, "Xóa danh mục thành công");
     };

@@ -5,18 +5,21 @@ import User from "../models/User.js";
 import crypto from "crypto";
 import {sendEmail} from "../utils/sendEmail.js";
 import createError from "../utils/createError.js";
-
+import Wallet from "../models/wallet.js";
     export const register = async (req, res) => {
         const errors = validationResult(req);
         if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
         const { name, email, password } = req.body;
-
+        
         try {
         // check exists
             let user = await User.findOne({ email });
             if (user) return res.status(400).json({ message: 'Email đã được đăng ký' });
 
+          
+         
+            
 
             // hash password
             const salt = await bcrypt.genSalt(10);
@@ -24,6 +27,11 @@ import createError from "../utils/createError.js";
 
 
             user = new User({ name, email, password: hashed });
+            await Wallet.create({
+                  user: user._id,
+                  balance: 0,
+                  status: "active",
+              });
             await user.save();
 
 
