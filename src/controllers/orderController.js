@@ -326,45 +326,9 @@ export const updateOrderStatus = async (req, res) => {
       throw createError(400, "Đơn hàng chưa thanh toán");
     }
 
-    // Restock on cancel/return
-    if (["Đã hủy", "Trả hàng/Hoàn tiền"].includes(status)) {
-      for (const item of order.items) {
-        if (item.variant_id) {
-          await Variant.findByIdAndUpdate(item.variant_id, { $inc: { quantity: item.quantity } });
-        }
-      }
-      order.payment.status = "Đã hủy";
-    }
-
-    // COD delivered -> mark as paid
-    if (status === "Giao hàng thành công" && order.payment.method === "cod") {
-      order.payment.status = "Đã thanh toán";
-    }
-
-    if (note) order.note = order.note ? `${order.note}\n[Admin] ${note}` : `[Admin] ${note}`;
-
     order.status = status;
     order.status_logs = order.status_logs || [];
     order.status_logs.push({ status, note: note || `Chuyển trạng thái từ "${oldStatus}"`, updatedBy: req.user._id, updatedAt: new Date() });
-
-    // If payment just became confirmed (transitioned to paid), atomically increment discount usage
-    const justBecamePaid = prevPaymentStatus !== 'Đã thanh toán' && order.payment.status === 'Đã thanh toán';
-    if (justBecamePaid && order.discount && order.discount.code) {
-      const discount = await Discount.findOne({ code: order.discount.code });
-      if (discount) {
-        const limit = Number(discount.totalUsageLimit);
-        if (Number.isFinite(limit)) {
-          const updated = await Discount.findOneAndUpdate(
-            { _id: discount._id, usedCount: { $lt: limit } },
-            { $inc: { usedCount: 1 } },
-            { new: true }
-          );
-          if (!updated) throw createError(400, 'Mã đã đạt giới hạn sử dụng');
-        } else {
-          await Discount.findByIdAndUpdate(discount._id, { $inc: { usedCount: 1 } });
-        }
-      }
-    }
 
     await order.save();
     return res.json({ success: true, message: "Cập nhật trạng thái thành công", data: order });
