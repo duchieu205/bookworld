@@ -1,11 +1,18 @@
-import { Router } from "express";
-import handleAsync from "../utils/handleAsync.js";
-import discountController from "../controllers/discountController.js";
-const router = Router();
+    import { Router } from "express";
+    import handleAsync from "../utils/handleAsync.js";
+    import discountController from "../controllers/discountController.js";
+    import { requireAdmin, verifyToken } from "../middlewares/authMiddleware.js";
+    const router = Router();
 
-router.post("/", handleAsync(discountController.createDiscount));
-router.get("/", handleAsync(discountController.getDiscount));
-router.delete("/", handleAsync(discountController.deleteDiscount));
+    // Admin-only: create and delete
+    router.post("/", requireAdmin, handleAsync(discountController.createDiscount));
+    // Admin: update and get by id for admin UI compatibility
+    router.put("/update/:id", requireAdmin, handleAsync(discountController.updateDiscount));
+    router.get("/:id", requireAdmin, handleAsync(discountController.getDiscountById));
 
+    // Allow authenticated users to validate a code for their cart
+    router.post("/validate", verifyToken, handleAsync(discountController.validateDiscount));
+    router.get("/", handleAsync(discountController.getDiscount));
+    router.delete("/", requireAdmin, handleAsync(discountController.deleteDiscount));
 
-export default router;
+    export default router;

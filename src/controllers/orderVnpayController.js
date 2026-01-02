@@ -5,6 +5,7 @@ import Variant from "../models/variant.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
+import { computeDiscountForItems } from "../utils/discountUtil.js";
 import { VNPay, ignoreLogger, ProductCode, VnpLocale, dateFormat } from "vnpay";
 import crypto from "crypto";
 import qs from "qs";
@@ -66,13 +67,22 @@ export const createOrderWithVnPay = async (req, res) => {
 	const userId = req.user && req.user._id;
 	if (!userId) throw createError(401, "Chưa đăng nhập");
 
-	const {
+	let {
 		items: bodyItems,
 		shipping_address = {},
 		shipping_fee = 0,
 		note = "",
 		discountCode,
 	} = req.body;
+
+	// Accept multiple field names from client
+	discountCode = discountCode || req.body.code || req.body.coupon || req.body.promoCode;
+
+	// Normalize discount code: strip leading $ and uppercase
+	discountCode = discountCode ? String(discountCode).trim().toUpperCase().replace(/^\$/,'') : undefined;
+
+	// Log incoming discount code for debugging
+	console.log('[VnPay Order Debug] incoming discountCode:', discountCode);
 
 	if (!Array.isArray(bodyItems) || bodyItems.length === 0)
 		throw createError(400, "Không có sản phẩm để đặt hàng");
@@ -110,26 +120,19 @@ export const createOrderWithVnPay = async (req, res) => {
 		});
 	}
 
-	// ===== 2. Discount =====
+	// ===== 2. Discount (use server helper) =====
 	let discountAmount = 0;
+	let appliedDiscount = null;
+	let appliedItems = [];
 	if (discountCode) {
-		for (const it of items) {
-			const variant = await Variant.findById(it.variant_id);
-			const d = await Discount.findOne({
-				code: discountCode,
-				productID: String(it.product_id),
-				status: "active",
-			});
+		const result = await computeDiscountForItems({ items, discountCode, userId });
+		// result.subtotal should match our subtotal calculation above; keep using computed subtotal for safety
+		subtotal = result.subtotal;
+		discountAmount = result.discountAmount;
+		appliedDiscount = result.appliedDiscount;
+		appliedItems = result.appliedItems || [];
 
-			if (d) {
-				const price = variant.price * it.quantity;
-				if (d.discount_type === "%") {
-					discountAmount += price * (Number(d.discount_value) / 100);
-				} else {
-					discountAmount += Number(d.discount_value);
-				}
-			}
-		}
+		console.log("[Discount Debug - VnPay] code=", discountCode, "discountAmount=", discountAmount, "appliedItems=", appliedItems);
 	}
 
 	const total = Math.max(
@@ -143,7 +146,7 @@ export const createOrderWithVnPay = async (req, res) => {
 		items,
 		subtotal,
 		shipping_fee,
-		discount: { code: discountCode || "", amount: discountAmount },
+		discount: { code: discountCode || "", amount: discountAmount, appliedItems },
 		total,
 		shipping_address,
 		note,
@@ -153,6 +156,11 @@ export const createOrderWithVnPay = async (req, res) => {
 			status: "Chưa thanh toán",
 		},
 	});
+
+	// NOTE: For VNPay we DO NOT increment discount.usedCount here. We'll increment it
+	// in the VNPay return handler after confirming the payment to avoid consuming
+	// codes for abandoned/unpaid attempts.
+
 	const vnpay = new VNPay({
 		tmnCode: process.env.VNP_TMN_CODE,
 		secureSecret: process.env.VNP_HASH_SECRET,
@@ -399,6 +407,35 @@ export const vnpayReturn = async (req, res) => {
     order.payment.bank_code = vnp_BankCode;
     order.payment.paid_at = new Date();
     order.status = "Chờ xử lý";
+
+    // Increment discount usedCount now that payment is confirmed (atomic to avoid races)
+    if (order.discount && order.discount.code) {
+      try {
+        const discount = await Discount.findOne({ code: order.discount.code });
+        if (discount) {
+          const limit = Number(discount.totalUsageLimit);
+          if (Number.isFinite(limit)) {
+            const updated = await Discount.findOneAndUpdate(
+              { code: order.discount.code, usedCount: { $lt: limit } },
+              { $inc: { usedCount: 1 } },
+              { new: true }
+            );
+            if (!updated) {
+              // Can't consume discount because limit reached. Cancel order and notify user.
+              console.warn('Discount limit reached during VNPay return', { code: order.discount.code, limit, orderId: order._id });
+              order.payment.status = 'Đã hủy';
+              order.status = 'Đã hủy';
+              await order.save();
+              return res.redirect(`${process.env.FRONTEND_URL}/order?error=discount_limit_reached`);
+            }
+          } else {
+            await Discount.findOneAndUpdate({ code: order.discount.code }, { $inc: { usedCount: 1 } });
+          }
+        }
+      } catch (err) {
+        console.warn('Không thể cập nhật usedCount cho mã giảm giá sau khi thanh toán:', err.message);
+      }
+    }
     
     await order.save();
     

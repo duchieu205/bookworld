@@ -15,7 +15,7 @@ export const createOrder = async (req, res) => {
   const userId = req.user?._id;
   if (!userId) throw createError(401, "Chưa đăng nhập");
 
-  const {
+  let {
     items,
     shipping_address = {},
     shipping_fee = 30000,
@@ -24,7 +24,16 @@ export const createOrder = async (req, res) => {
     payment = { method: "cod" },
   } = req.body;
 
-  if (!Array.isArray(items) || items.length === 0) {
+  // Accept multiple field names from client
+  discountCode = discountCode || req.body.code || req.body.coupon || req.body.promoCode;
+
+  // Normalize discount code: strip leading $ and uppercase
+  discountCode = discountCode ? String(discountCode).trim().toUpperCase().replace(/^\$/,'') : undefined;
+
+  // Log incoming discount code for debugging
+  console.log('[Order Debug] incoming discountCode:', discountCode);
+
+  if (!Array.isArray(items) || items.length === 0) {  
     throw createError(400, "Không có sản phẩm để đặt hàng");
   }
 
@@ -58,22 +67,57 @@ export const createOrder = async (req, res) => {
 
   // Discount
   let discountAmount = 0;
+  let appliedDiscount = null;
   if (discountCode) {
-    for (const item of orderItems) {
-      const discount = await Discount.findOne({
-        code: discountCode,
-        productID: String(item.product_id),
-        status: "active",
-      });
+    const discount = await Discount.findOne({ code: discountCode, status: "active" });
+    if (!discount) throw createError(400, "Mã giảm giá không tồn tại hoặc không hoạt động");
 
-      if (discount) {
-        if (discount.discount_type === "%") {
-          discountAmount += subtotal * (discount.discount_value / 100);
-        } else {
-          discountAmount += discount.discount_value;
+    const now = new Date();
+    if (discount.startsAt && now < discount.startsAt) throw createError(400, "Mã chưa đến hạn sử dụng");
+    if (discount.endsAt && discount.endsAt < now) throw createError(400, "Mã đã hết hạn");
+
+    const limit = Number(discount.totalUsageLimit);
+    if (Number.isFinite(limit) && discount.usedCount >= limit) throw createError(400, "Mã đã đạt giới hạn sử dụng");
+
+    if (discount.perUserLimit) {
+      const usedByUser = await Order.countDocuments({ "discount.code": discount.code, user_id: userId });
+      if (usedByUser >= discount.perUserLimit) throw createError(400, "Bạn đã đạt giới hạn sử dụng mã này");
+    }
+
+    if (discount.minOrderValue && subtotal < discount.minOrderValue) throw createError(400, `Đơn hàng cần tối thiểu ${discount.minOrderValue}`);
+
+    // Calculate applicable subtotal (if applicableProducts specified)
+    let applicableSubtotal = subtotal;
+    if (Array.isArray(discount.applicableProducts) && discount.applicableProducts.length > 0) {
+      applicableSubtotal = 0;
+      for (const item of orderItems) {
+        if (discount.applicableProducts.map(p => String(p)).includes(String(item.product_id))) {
+          // get price (variant or product)
+          let price = 0;
+          if (item.variant_id) {
+            const variant = await Variant.findById(item.variant_id);
+            price = variant ? variant.price : 0;
+          } else {
+            const product = await Product.findById(item.product_id);
+            price = product ? product.price : 0;
+          }
+          applicableSubtotal += price * item.quantity;
         }
       }
     }
+
+    if (discount.type === "percent") {
+      discountAmount += applicableSubtotal * (discount.value / 100);
+    } else {
+      discountAmount += discount.value;
+    }
+
+    discountAmount = Math.max(0, Math.min(discountAmount, subtotal));
+    appliedDiscount = discount;
+
+    // Diagnostic log for debugging why discount might be zero
+    console.log("[Discount Debug] code=", discount.code, "type=", discount.type, "value=", discount.value);
+    console.log("[Discount Debug] subtotal=", subtotal, "applicableSubtotal=", applicableSubtotal, "discountAmount=", discountAmount);
   }
 
   const total = Math.max(0, subtotal + shipping_fee - discountAmount);
@@ -102,6 +146,9 @@ export const createOrder = async (req, res) => {
       });
     }
   }
+
+  // NOTE: We no longer increment `usedCount` at order creation to avoid consuming codes for unpaid/pending orders.
+  // `usedCount` is incremented atomically when payment is confirmed (wallet/vnpay) or when admin marks order as paid/delivered.
 
   res.status(201).json({
     success: true,
@@ -271,6 +318,8 @@ export const updateOrderStatus = async (req, res) => {
     throw createError(400, "Đơn hàng chưa thanh toán");
   }
 
+  const prevPaymentStatus = order.payment.status;
+
   // COD: giao thành công -> đã thanh toán
   if (status === "Giao hàng thành công" && order.payment.method === "cod") {
     order.payment.status = "Đã thanh toán";
@@ -289,6 +338,33 @@ export const updateOrderStatus = async (req, res) => {
   }
 
   order.status = status;
+
+  // If payment has just become confirmed (transitioned to paid), atomically increment discount usage
+  const justBecamePaid = prevPaymentStatus !== 'Đã thanh toán' && order.payment.status === 'Đã thanh toán';
+  if (justBecamePaid && order.discount && order.discount.code) {
+    try {
+      const discount = await Discount.findOne({ code: order.discount.code });
+      if (discount) {
+        const limit = Number(discount.totalUsageLimit);
+        if (Number.isFinite(limit)) {
+          const updated = await Discount.findOneAndUpdate(
+            { _id: discount._id, usedCount: { $lt: limit } },
+            { $inc: { usedCount: 1 } },
+            { new: true }
+          );
+          if (!updated) {
+            console.warn('Discount limit reached during admin confirm', { code: discount.code, limit, orderId: order._id });
+            throw createError(400, 'Mã đã đạt giới hạn sử dụng');
+          }
+        } else {
+          await Discount.findByIdAndUpdate(discount._id, { $inc: { usedCount: 1 } });
+        }
+      }
+    } catch (err) {
+      // Bubble up error so admin cannot confirm an order if code cannot be consumed
+      throw err;
+    }
+  }
   if (note) {
     order.note = order.note
       ? `${order.note}\n[Admin] ${note}`
