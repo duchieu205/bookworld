@@ -182,7 +182,9 @@ import Wallet from "../models/wallet.js";
     withdrawalMethod: withdrawalMethodId,
     description: "Rút tiền từ ví"
   });
+  wallet.balance -= amount;
 
+  await wallet.save();
   return res.status(201).json({
     success: true,
     message: "Yêu cầu rút tiền đã được gửi, chờ admin duyệt",
@@ -191,7 +193,7 @@ import Wallet from "../models/wallet.js";
 };
 
 
-   export const approveWithdraw = async (req, res) => {
+  export const approveWithdraw = async (req, res) => {
   const { transactionId } = req.params;
 
   const transaction = await WalletTransaction.findById(transactionId);
@@ -212,7 +214,6 @@ import Wallet from "../models/wallet.js";
     return res.status(400).json({ message: "Số dư không đủ để duyệt rút" });
 
   
-  wallet.balance -= transaction.amount;
   await wallet.save();
 
   transaction.status = "Thành công";
@@ -228,7 +229,7 @@ import Wallet from "../models/wallet.js";
     export const getAllWalletTransactions = async (req, res) => {
       const {
         page = 1,
-        limit = 10,
+        limit,
         status,
         type,
         user,
@@ -252,7 +253,7 @@ import Wallet from "../models/wallet.js";
 
       const skip = (page - 1) * limit;
 
-      const [data, total] = await Promise.all([
+      const [data, total, stats] = await Promise.all([
         WalletTransaction.find(filter)
           .populate("user", "name email")
           .populate("wallet")
@@ -263,7 +264,34 @@ import Wallet from "../models/wallet.js";
           .limit(Number(limit)),
 
         WalletTransaction.countDocuments(filter),
+        WalletTransaction.aggregate([
+          { $match: filter },
+          {
+            $group: {
+              _id: "$type",
+              totalAmount: { $sum: "$amount" },
+              count: { $sum: 1 },
+            },
+          },
+        ]),
       ]);
+      const summary = {
+        totalDeposit: 0,
+        depositCount: 0,
+        totalWithdraw: 0,
+        withdrawCount: 0,
+      };
+
+        stats.forEach((item) => {
+          if (item._id === "Nạp tiền") {
+            summary.totalDeposit = item.totalAmount;
+            summary.depositCount = item.count;
+          }
+          if (item._id === "Rút tiền") {
+            summary.totalWithdraw = item.totalAmount;
+            summary.withdrawCount = item.count;
+          }
+        });
 
       return res.json({
         success: true,
@@ -274,7 +302,8 @@ import Wallet from "../models/wallet.js";
           totalPages: Math.ceil(total / limit),
         },
         data,
-      });
+        summary,
+          });
     };
 export const getMyWalletTransactions = async (req, res) => {
   const userId = req.user._id;

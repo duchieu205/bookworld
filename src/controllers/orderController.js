@@ -330,6 +330,23 @@ export const updateOrderStatus = async (req, res) => {
     order.status_logs = order.status_logs || [];
     order.status_logs.push({ status, note: note || `Chuyển trạng thái từ "${oldStatus}"`, updatedBy: req.user._id, updatedAt: new Date() });
 
+    const justBecamePaid = prevPaymentStatus !== 'Đã thanh toán' && order.payment.status === 'Đã thanh toán';
+    if (justBecamePaid && order.discount && order.discount.code) {
+      const discount = await Discount.findOne({ code: order.discount.code });
+      if (discount) {
+        const limit = Number(discount.totalUsageLimit);
+        if (Number.isFinite(limit)) {
+          const updated = await Discount.findOneAndUpdate(
+            { _id: discount._id, usedCount: { $lt: limit } },
+            { $inc: { usedCount: 1 } },
+            { new: true }
+          );
+          if (!updated) throw createError(400, 'Mã đã đạt giới hạn sử dụng');
+        } else {
+          await Discount.findByIdAndUpdate(discount._id, { $inc: { usedCount: 1 } });
+        }
+      }
+    }
     await order.save();
     return res.json({ success: true, message: "Cập nhật trạng thái thành công", data: order });
   } catch (err) {
@@ -346,6 +363,8 @@ export const updateOrderStatus = async (req, res) => {
 export const cancelOrder = async (req, res) => {
   const order = await Order.findById(req.params.id);
   if (!order) throw createError(404, "Đơn hàng không tồn tại");
+
+  const prevPaymentStatus = order.payment.status;
 
   const isOwner = String(order.user_id) === String(req.user?._id);
   const isAdmin = req.user?.role === "admin";
@@ -372,6 +391,13 @@ export const cancelOrder = async (req, res) => {
       });
       wallet.balance += order.total;
       await wallet.save()
+  }
+
+  if (prevPaymentStatus === "Đã thanh toán" &&order.discount?.code) {
+    await Discount.findOneAndUpdate(
+      { code: order.discount.code, usedCount: { $gt: 0 } },
+      { $inc: { usedCount: -1 } }
+    );
   }
 
   order.status = "Đã hủy";
@@ -478,11 +504,23 @@ export const requestReturnOrder = async (req, res) => {
       return res.status(400).json({
         message: "Đơn hàng không đủ điều kiện trả",
       });
+    const oldStatus = order.status;
+    const newStatus = "Đang yêu cầu Trả hàng/Hoàn tiền";
 
+    // Cập nhật trạng thái
+    order.status = newStatus;
 
-    order.status = "Đang yêu cầu Trả hàng/Hoàn tiền";
+    // Push log trạng thái
+    order.status_logs = order.status_logs || [];
+    order.status_logs.push({
+      status: newStatus,
+      note: `Chuyển trạng thái từ "${oldStatus}`,
+      updatedBy: userId,
+      updatedAt: new Date(),
+    });
 
     await order.save();
+
 
     res.json({
       message: "Gửi yêu cầu trả hàng / hoàn tiền thành công",
@@ -500,6 +538,8 @@ export const approveReturnOrder = async (req, res) => {
     const { orderId } = req.params;
     const order = await Order.findById(orderId);
     
+    const prevPaymentStatus = order.payment.status;
+
     const adminId = req.user?._id;
     if (!adminId) throw createError(401, "Chưa đăng nhập");
 
@@ -508,6 +548,15 @@ export const approveReturnOrder = async (req, res) => {
     if (order.status === "Trả hàng/Hoàn tiền thành công") {
       return res.status(400).json({ message: "Đơn hàng đã được hoàn tiền" });
     }
+
+// rollback voucher nếu đơn đã từng thanh toán
+    if (prevPaymentStatus === "Đã thanh toán" && order.discount?.code) {
+      await Discount.findOneAndUpdate(
+        { code: order.discount.code, usedCount: { $gt: 0 } },
+        { $inc: { usedCount: -1 } }
+      );
+    }
+
     for (const item of order.items) {
       if (item.variant_id) {
         await Variant.findByIdAndUpdate(item.variant_id, {
@@ -529,8 +578,23 @@ export const approveReturnOrder = async (req, res) => {
     wallet.balance += order.total;
     await wallet.save();
 
-    order.status = "Trả hàng/Hoàn tiền thành công";
+    const oldStatus = order.status;
+    const newStatus = "Trả hàng/Hoàn tiền thành công";
+
+    // Cập nhật trạng thái
+    order.status = newStatus;
+
+    // Push log trạng thái
+    order.status_logs = order.status_logs || [];
+    order.status_logs.push({
+      status: newStatus,
+      note: `Chuyển trạng thái từ "${oldStatus}`,
+      updatedBy: adminId,
+      updatedAt: new Date(),
+    });
+
     await order.save();
+
 
     res.json({
       message: "Đã duyệt Trả hàng/Hoàn tiền",
@@ -541,6 +605,4 @@ export const approveReturnOrder = async (req, res) => {
     res.status(500).json({ message: "Lỗi server" });
   }
 };
-
-
 

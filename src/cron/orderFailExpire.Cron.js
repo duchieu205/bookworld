@@ -59,7 +59,11 @@ export const orderFailExpireCron = () => {
         await order.save();
         }
         console.log("CRON auto-cancel running at", new Date().toLocaleString());
-        console.log("CRON auto-cancel orders done");
+        if (orders.length) {
+            console.log(
+            `[CRON] Đã cập nhật ${orders.length} đơn quá hạn thanh toán`
+            );
+      }
     } catch (err) {
         console.error("CRON auto-cancel error:", err);
     }
