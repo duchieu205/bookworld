@@ -120,7 +120,7 @@ export const createOrderWithWallet = async (req, res) => {
         type: "Thanh toán",
         status: "Thành công",
         amount: order.total,
-        description: `Thanh toán hóa đơn ${order._id}`
+        description: `Thanh toán đơn hàng ${order._id}`
       });
     
 

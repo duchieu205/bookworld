@@ -31,10 +31,7 @@ const walletTransactionSchema = new mongoose.Schema(
       default: "Chờ xử lý",
     },
 
-    order: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Order",
-    },
+
     expiredAt: {
       type: Date,
       index: true,

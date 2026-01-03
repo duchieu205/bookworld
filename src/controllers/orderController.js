@@ -269,7 +269,9 @@ export const getAllOrders = async (req, res) => {
     throw createError(403, "Chỉ admin mới được truy cập");
   }
 
-  const orders = await Order.find().sort({ createdAt: -1 });
+   const orders = await Order.find()
+    .populate("user_id", "-password")
+    .sort({ createdAt: -1 });
   res.json({ success: true, data: orders });
 };
 
@@ -362,13 +364,18 @@ export const updateOrderStatus = async (req, res) => {
 ========================= */
 export const cancelOrder = async (req, res) => {
   const order = await Order.findById(req.params.id);
+  const { note } = req.body;
   if (!order) throw createError(404, "Đơn hàng không tồn tại");
 
   const prevPaymentStatus = order.payment.status;
 
   const isOwner = String(order.user_id) === String(req.user?._id);
   const isAdmin = req.user?.role === "admin";
+  const cancelByText = isAdmin ? "Admin" : "Người dùng";
 
+  if (isAdmin && !note) {
+  throw createError(400, "Admin phải nhập lý do hủy đơn");
+  }
   if (isOwner && order.status !== "Chờ xử lý") {
     throw createError(400, "Không thể hủy đơn ở trạng thái hiện tại");
   }
@@ -379,7 +386,7 @@ export const cancelOrder = async (req, res) => {
 
   if(order.payment.method === "vnpay" || order.payment.method === "wallet") {
   
-      const userId = req.user && req.user._id;
+      const userId = order.user_id;
       const wallet = await Wallet.findOne({user: userId});
       await WalletTransaction.create({
         wallet: wallet._id,
@@ -400,8 +407,20 @@ export const cancelOrder = async (req, res) => {
     );
   }
 
-  order.status = "Đã hủy";
-  order.payment.status = "Đã hủy";
+  const oldStatus = order.status;
+  const newStatus = "Đã hủy";
+
+ 
+    order.status = newStatus;
+
+
+    order.status_logs = order.status_logs || [];
+    order.status_logs.push({
+      status: newStatus,
+      note: `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`,
+      updatedBy: req.user?._id,
+      updatedAt: new Date(),
+    });
 
   for (const item of order.items) {
     if (item.variant_id) {
@@ -410,7 +429,7 @@ export const cancelOrder = async (req, res) => {
       });
     }
   }
-
+  order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
   await order.save();
 
   res.json({
