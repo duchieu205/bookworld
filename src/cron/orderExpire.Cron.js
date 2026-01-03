@@ -7,7 +7,9 @@ export const startOrderExpireCron = () => {
       const now = new Date();
 
       const expiredOrders = await Order.find({
+        status: { $ne: "Đã hủy" },
         "payment.status": "Chưa thanh toán",
+         "payment.method": { $in: ["wallet", "vnpay"] },
         expiredAt: { $lt: now }
       });
 
@@ -19,7 +21,9 @@ export const startOrderExpireCron = () => {
 
       if (expiredOrders.length) {
         console.log(
-          `[CRON] Đã cập nhật ${expiredOrders.length} đơn quá hạn thanh toán`
+          `[CRON] Đã cập nhật ${expiredOrders.length} đơn quá hạn thanh toán
+          ID: ${expiredOrders._id}`
+       
         );
       }
     } catch (err) {

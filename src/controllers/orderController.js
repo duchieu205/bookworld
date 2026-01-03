@@ -134,7 +134,7 @@ export const createOrder = async (req, res) => {
     status: "Chờ xử lý",
     payment: {
       method: payment.method || "cod",
-      status: "Chưa thanh toán",
+      status: "CCD",
     },
   });
 
