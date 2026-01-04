@@ -257,7 +257,6 @@ import Wallet from "../models/wallet.js";
         WalletTransaction.find(filter)
           .populate("user", "name email")
           .populate("wallet")
-          .populate("order", "total status")
           .populate("withdrawalMethod")
           .sort({ createdAt: -1 })
           .skip(skip)
