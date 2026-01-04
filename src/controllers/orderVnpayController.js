@@ -242,8 +242,9 @@ export const createOrderWithVnPay = async (req, res) => {
         console.warn('Không thể cập nhật usedCount cho mã giảm giá sau khi thanh toán:', err.message);
       }
     }
-
-console.log("VNPay paymentUrl:", paymentUrl);
+  order.payment.payment_url = paymentUrl;
+  await order.save();
+  console.log("VNPay paymentUrl:", paymentUrl);
 	return res.status(201).json({
 		success: true,
 		message: "Tạo đơn hàng & link thanh toán VNPay thành công",
@@ -384,11 +385,16 @@ export const vnpayReturn = async (req, res) => {
       console.error("❌ Không tìm thấy đơn hàng:", vnp_TxnRef);
       return res.redirect(`${process.env.FRONTEND_URL}/order?error=order_not_found`);
     }
+    if (order.status !== "Chờ xử lý") {
+        return res.redirect(`${process.env.FRONTEND_URL}/order`);
+    }
 
-    // Check idempotent (đã xử lý rồi thì skip)
+    if (order.payment.status !== "Chưa thanh toán") {
+        return res.redirect(`${process.env.FRONTEND_URL}/order`);
+    }
     if (order.payment.status === "Đã thanh toán") {
       console.log("⚠️ Đơn hàng đã được xử lý trước đó");
-      return res.redirect(`${process.env.FRONTEND_URL}/order?success=true&orderId=${order._id}`);
+      return res.redirect(`${process.env.FRONTEND_URL}/order`);
     }
 
     // Check response code
@@ -400,7 +406,7 @@ export const vnpayReturn = async (req, res) => {
       order.status = "Đã hủy";
       await order.save();
       
-      return res.redirect(`${process.env.FRONTEND_URL}/order?error=payment_failed&code=${vnp_ResponseCode}`);
+      return res.redirect(`${process.env.FRONTEND_URL}/order`);
     }
 
     // Verify amount (VNPay nhân x100)
@@ -419,7 +425,7 @@ export const vnpayReturn = async (req, res) => {
       order.status = "Đã hủy";
       await order.save();
       
-      return res.redirect(`${process.env.FRONTEND_URL}/order?error=amount_mismatch`);
+      return res.redirect(`${process.env.FRONTEND_URL}/order`);
     }
 
 
@@ -430,8 +436,7 @@ export const vnpayReturn = async (req, res) => {
     order.payment.bank_code = vnp_BankCode;
     order.payment.paid_at = new Date();
     order.status = "Chờ xử lý";
-
-    // Increment discount usedCount now that payment is confirmed (atomic to avoid races)
+    order.payment.payment_url = null;
   
     
     await order.save();
@@ -447,11 +452,11 @@ export const vnpayReturn = async (req, res) => {
 
 
     console.log("🎉 Thanh toán hoàn tất! Redirect về frontend...");
-    return res.redirect(`${process.env.FRONTEND_URL}/order?success=true&orderId=${order._id}`);
+    return res.redirect(`${process.env.FRONTEND_URL}/order`);
     
   } catch (err) {
     console.error("❌ VNPay return fatal error:", err);
-    return res.redirect(`${process.env.FRONTEND_URL}/order?error=server_error`);
+    return res.redirect(`${process.env.FRONTEND_URL}/order`);
   }
 };
 

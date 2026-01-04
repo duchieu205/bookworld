@@ -78,9 +78,11 @@ const orderSchema = new Schema(
     payment: {
       method: { type: String, default: "cod" },
       status: { type: String, default: "Chưa thanh toán" },
+      payment_url: {type: String, default: null,},
       transaction_id: { type: String },
       refunded: { type: Boolean, default: false },
     },
+    
 
     expiredAt: {
       type: Date,
