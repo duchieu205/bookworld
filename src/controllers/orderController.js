@@ -134,7 +134,7 @@ export const createOrder = async (req, res) => {
     status: "Chờ xử lý",
     payment: {
       method: payment.method || "cod",
-      status: "CCD",
+      status: "COD",
     },
   });
 
@@ -384,8 +384,8 @@ export const cancelOrder = async (req, res) => {
   }
 
 
-  if(order.payment.method === "vnpay" || order.payment.method === "wallet") {
-  
+
+  if((order.payment.method === "vnpay" || order.payment.method === "wallet") && order.payment.status === "Đã thanh toán") {
       const userId = order.user_id;
       const wallet = await Wallet.findOne({user: userId});
       await WalletTransaction.create({
@@ -430,6 +430,7 @@ export const cancelOrder = async (req, res) => {
     }
   }
   order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
+  order.payment.status = "Thất bại";
   await order.save();
 
   res.json({

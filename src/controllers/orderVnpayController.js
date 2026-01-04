@@ -187,6 +187,62 @@ export const createOrderWithVnPay = async (req, res) => {
 		vnp_ExpireDate: dateFormat(expire),
 	});
 
+  for (const item of items) {
+      if (item.variant_id) {
+        await Variant.findByIdAndUpdate(item.variant_id, {
+          $inc: { quantity: -item.quantity },
+        });
+      }
+  }
+
+  try {
+      const cart = await Cart.findOne({ user_id: order.user_id });
+      
+      if (cart) {
+        // Xóa các items đã thanh toán
+        cart.items = cart.items.filter(cartItem => {
+          return !order.items.some(orderItem => 
+            String(cartItem.product_id) === String(orderItem.product_id) &&
+            String(cartItem.variant_id) === String(orderItem.variant_id)
+          );
+        });
+          
+        await cart.save();
+        console.log("✅ Đã xóa sản phẩm khỏi giỏ hàng");
+      }
+    } catch (cartErr) {
+      console.warn("⚠️ Không thể xóa giỏ hàng:", cartErr.message);
+   
+  }
+
+    if (order.discount && order.discount.code) {
+      try {
+        const discount = await Discount.findOne({ code: order.discount.code });
+        if (discount) {
+          const limit = Number(discount.totalUsageLimit);
+          if (Number.isFinite(limit)) {
+            const updated = await Discount.findOneAndUpdate(
+              { code: order.discount.code, usedCount: { $lt: limit } },
+              { $inc: { usedCount: 1 } },
+              { new: true }
+            );
+            if (!updated) {
+              // Can't consume discount because limit reached. Cancel order and notify user.
+              console.warn('Discount limit reached during VNPay return', { code: order.discount.code, limit, orderId: order._id });
+              order.payment.status = 'Đã hủy';
+              order.status = 'Đã hủy';
+              await order.save();
+              return res.redirect(`${process.env.FRONTEND_URL}/order?error=discount_limit_reached`);
+            }
+          } else {
+            await Discount.findOneAndUpdate({ code: order.discount.code }, { $inc: { usedCount: 1 } });
+          }
+        }
+      } catch (err) {
+        console.warn('Không thể cập nhật usedCount cho mã giảm giá sau khi thanh toán:', err.message);
+      }
+    }
+
 console.log("VNPay paymentUrl:", paymentUrl);
 	return res.status(201).json({
 		success: true,
@@ -366,39 +422,6 @@ export const vnpayReturn = async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/order?error=amount_mismatch`);
     }
 
-    // Trừ kho (CRITICAL SECTION)
-    console.log("📦 Bắt đầu trừ kho cho", order.items.length, "sản phẩm");
-    
-    for (const it of order.items) {
-      const variant = await Variant.findById(it.variant_id);
-      
-      if (!variant) {
-        console.error("❌ Không tìm thấy variant:", it.variant_id);
-        order.payment.status = "Thất bại - không tìm thấy sản phẩm";
-        order.status = "Đã hủy";
-        await order.save();
-        return res.redirect(`${process.env.FRONTEND_URL}/order?error=variant_not_found`);
-      }
-
-      if (variant.quantity < it.quantity) {
-        console.error("❌ Hết hàng:", {
-          variantId: it.variant_id,
-          requested: it.quantity,
-          available: variant.quantity
-        });
-        
-        order.payment.status = "Thất bại - hết hàng";
-        order.status = "Đã hủy";
-        await order.save();
-        return res.redirect(`${process.env.FRONTEND_URL}/order?error=out_of_stock`);
-      }
-
-      // Trừ số lượng
-      variant.quantity -= it.quantity;
-      await variant.save();
-      
-      console.log(`Đã trừ ${it.quantity} sản phẩm từ variant ${it.variant_id}`);
-    }
 
     // CẬP NHẬT TRẠNG THÁI ĐỢN HÀNG
     order.payment.status = "Đã thanh toán";
@@ -409,33 +432,7 @@ export const vnpayReturn = async (req, res) => {
     order.status = "Chờ xử lý";
 
     // Increment discount usedCount now that payment is confirmed (atomic to avoid races)
-    if (order.discount && order.discount.code) {
-      try {
-        const discount = await Discount.findOne({ code: order.discount.code });
-        if (discount) {
-          const limit = Number(discount.totalUsageLimit);
-          if (Number.isFinite(limit)) {
-            const updated = await Discount.findOneAndUpdate(
-              { code: order.discount.code, usedCount: { $lt: limit } },
-              { $inc: { usedCount: 1 } },
-              { new: true }
-            );
-            if (!updated) {
-              // Can't consume discount because limit reached. Cancel order and notify user.
-              console.warn('Discount limit reached during VNPay return', { code: order.discount.code, limit, orderId: order._id });
-              order.payment.status = 'Đã hủy';
-              order.status = 'Đã hủy';
-              await order.save();
-              return res.redirect(`${process.env.FRONTEND_URL}/order?error=discount_limit_reached`);
-            }
-          } else {
-            await Discount.findOneAndUpdate({ code: order.discount.code }, { $inc: { usedCount: 1 } });
-          }
-        }
-      } catch (err) {
-        console.warn('Không thể cập nhật usedCount cho mã giảm giá sau khi thanh toán:', err.message);
-      }
-    }
+  
     
     await order.save();
     
@@ -447,25 +444,7 @@ export const vnpayReturn = async (req, res) => {
     });
 
     // XÓA SẢN PHẨM KHỎI GIỎ HÀNG
-    try {
-      const cart = await Cart.findOne({ user_id: order.user_id });
-      
-      if (cart) {
-        // Xóa các items đã thanh toán
-        cart.items = cart.items.filter(cartItem => {
-          return !order.items.some(orderItem => 
-            String(cartItem.product_id) === String(orderItem.product_id) &&
-            String(cartItem.variant_id) === String(orderItem.variant_id)
-          );
-        });
-          
-        await cart.save();
-        console.log("✅ Đã xóa sản phẩm khỏi giỏ hàng");
-      }
-    } catch (cartErr) {
-      console.warn("⚠️ Không thể xóa giỏ hàng:", cartErr.message);
-   
-    }
+
 
     console.log("🎉 Thanh toán hoàn tất! Redirect về frontend...");
     return res.redirect(`${process.env.FRONTEND_URL}/order?success=true&orderId=${order._id}`);

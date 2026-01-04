@@ -42,7 +42,13 @@ const walletTransactionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "WithdrawalMethod",
     },
-
+    image_transaction: {
+      type: String,
+      default: null,
+    },
+    approvedWithDrawalAt: {
+      type: Date,
+    },
     description: String,
   },
   { timestamps: true }

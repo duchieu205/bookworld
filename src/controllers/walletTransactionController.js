@@ -182,9 +182,7 @@ import Wallet from "../models/wallet.js";
     withdrawalMethod: withdrawalMethodId,
     description: "Rút tiền từ ví"
   });
-  wallet.balance -= amount;
-
-  await wallet.save();
+  
   return res.status(201).json({
     success: true,
     message: "Yêu cầu rút tiền đã được gửi, chờ admin duyệt",
@@ -195,8 +193,11 @@ import Wallet from "../models/wallet.js";
 
   export const approveWithdraw = async (req, res) => {
   const { transactionId } = req.params;
-
+  const { image_transaction } = req.body;
   const transaction = await WalletTransaction.findById(transactionId);
+   if (!image_transaction) {
+    return res.status(400).json({ message: "Thiếu ảnh giao dịch" });
+  }
   if (!transaction)
     return res.status(404).json({ message: "Không tìm thấy giao dịch" });
 
@@ -213,10 +214,12 @@ import Wallet from "../models/wallet.js";
   if (wallet.balance < transaction.amount)
     return res.status(400).json({ message: "Số dư không đủ để duyệt rút" });
 
-  
+  wallet.balance -= transaction.amount;
   await wallet.save();
 
   transaction.status = "Thành công";
+  transaction.image_transaction = image_transaction;
+  transaction.approvedWithDrawalAt = new Date();
   await transaction.save();
 
   return res.json({
