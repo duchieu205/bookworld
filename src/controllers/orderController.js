@@ -422,14 +422,14 @@ export const cancelOrder = async (req, res) => {
       updatedAt: new Date(),
     });
 
+    //Hoàn kho
   for (const item of order.items) {
     if (item.variant_id) {
       await Variant.findByIdAndUpdate(item.variant_id, {
         $inc: { quantity: item.quantity },
       });
     }
-  }
-  order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
+  }  order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
   order.payment.status = "Thất bại";
   await order.save();
 
