@@ -69,14 +69,17 @@ export const getTotalRevenue = async (req, res) => {
 	const product = normalizeProductParam(rawProduct); // normalized product value (id or name)
 
 	// Base match (DO NOT put createdAt here — we'll match on converted createdAtDate)
+	// NOTE: include orders with status "Giao hàng thành công" regardless of payment.status so COD delivered orders are counted
 	const baseMatch = {
-		// Accept both English and Vietnamese status variants that imply a confirmed/completed order
-		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
-		$or: [
-			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
-			{ "payment.status": { $exists: false } },
-			{ payment: { $exists: false } },
-		],
+		$and: [
+			{ status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] } },
+			{ $or: [
+				{ status: "Giao hàng thành công" },
+				{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
+				{ "payment.status": { $exists: false } },
+				{ payment: { $exists: false } },
+			] }
+		]
 	};
 
 	const pipeline = [dateConversion, { $match: baseMatch }];
@@ -180,14 +183,17 @@ export const getRevenueByProduct = async (req, res) => {
 	const rawProduct = req.query.product || req.query.productId || req.query.productName;
 	const product = normalizeProductParam(rawProduct); // product can be id or name
 
+	// NOTE: include orders with status "Giao hàng thành công" regardless of payment.status so COD delivered orders are counted
 	const baseMatch = {
-		// Accept both English and Vietnamese status variants that imply a confirmed/completed order
-		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
-		$or: [
-			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
-			{ "payment.status": { $exists: false } },
-			{ payment: { $exists: false } },
-		],
+		$and: [
+			{ status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] } },
+			{ $or: [
+				{ status: "Giao hàng thành công" },
+				{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
+				{ "payment.status": { $exists: false } },
+				{ payment: { $exists: false } },
+			] }
+		]
 	};
 
 	const pipeline = [dateConversion, { $match: baseMatch }];
@@ -269,14 +275,17 @@ export const getDailyRevenue = async (req, res) => {
 	const product = normalizeProductParam(rawProduct);
 	const _debug = req.query && (req.query._debug === '1' || req.query._debug === 'true');
 	// Build match filter for date range and accept legacy/missing payment
+	// NOTE: include orders with status "Giao hàng thành công" regardless of payment.status so COD delivered orders are counted
 	const matchFilter = {
-		// Accept VN/EN statuses that should be counted in daily revenue
-		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
-		$or: [
-			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
-			{ "payment.status": { $exists: false } },
-			{ payment: { $exists: false } },
-		],
+		$and: [
+			{ status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] } },
+			{ $or: [
+				{ status: "Giao hàng thành công" },
+				{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
+				{ "payment.status": { $exists: false } },
+				{ payment: { $exists: false } },
+			] }
+		]
 	};
 	if (startDate || endDate) {
 		matchFilter.createdAtDate = {};
@@ -403,14 +412,17 @@ export const getDailyAndProductRevenue = async (req, res) => {
 	const rawProduct = req.query.product || req.query.productId || req.query.productName;
 	const product = normalizeProductParam(rawProduct);
 
-	// Build shared match filter
+	// Build shared match filter and include delivered status regardless of payment.status
 	const matchFilter = {
-		status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] },
-		$or: [
-			{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
-			{ "payment.status": { $exists: false } },
-			{ payment: { $exists: false } },
-		],
+		$and: [
+			{ status: { $in: ["Đã xác nhận", "Giao hàng thành công", "Hoàn tất", "confirmed"] } },
+			{ $or: [
+				{ status: "Giao hàng thành công" },
+				{ "payment.status": { $in: ["paid", "Đã thanh toán"] } },
+				{ "payment.status": { $exists: false } },
+				{ payment: { $exists: false } },
+			] }
+		]
 	};
 	if (startDate || endDate) {
 		matchFilter.createdAtDate = {};
@@ -422,10 +434,13 @@ export const getDailyAndProductRevenue = async (req, res) => {
 		}
 	}
 
+	const hasDateRange = startDate && endDate;
+	const hasProduct = product && product !== "undefined" && product !== "null";
+
 	// Build daily pipeline
 	const dailyPipeline = [dateConversion, { $match: matchFilter }, { $unwind: { path: "$items", preserveNullAndEmptyArrays: true } }];
 
-	if (product && product !== "undefined" && product !== "null") {
+	if (hasProduct) {
 		// lookup and filter items
 		dailyPipeline.push({ $lookup: { from: "products", localField: "items.product_id", foreignField: "_id", as: "product_info" } });
 		dailyPipeline.push({ $unwind: { path: "$product_info", preserveNullAndEmptyArrays: true } });
@@ -476,7 +491,7 @@ export const getDailyAndProductRevenue = async (req, res) => {
 	productPipeline.push({ $lookup: { from: "variants", localField: "items.variant_id", foreignField: "_id", as: "variant_info" } });
 	productPipeline.push({ $unwind: { path: "$variant_info", preserveNullAndEmptyArrays: true } });
 
-	if (product && product !== "undefined" && product !== "null") {
+	if (hasProduct) {
 		const prodMatch = {
 			$or: [
 				{ $expr: { $eq: [{ $toString: "$items.product_id" }, product] } },
@@ -503,10 +518,43 @@ export const getDailyAndProductRevenue = async (req, res) => {
 
 	if (process.env.NODE_ENV === "development") console.log("Analytics getDailyAndProductRevenue pipelines:", JSON.stringify({ dailyPipeline, productPipeline }));
 
-	const [dailyRes, productRes] = await Promise.all([
-		Order.aggregate(dailyPipeline),
-		Order.aggregate(productPipeline),
-	]);
+	let dailyRes = [];
+	let productRes = [];
+
+	// Execute only the parts requested by the caller to match frontend display expectations:
+	// - If date range provided and product empty => return daily only
+	// - If date range empty and product provided => return product only
+	// - If both empty or both provided => return both
+	if (hasDateRange || (!hasDateRange && !hasProduct)) {
+		dailyRes = await Order.aggregate(dailyPipeline);
+
+		// Fill missing dates with zeros when date range present
+		if (hasDateRange) {
+			const formatDateVN = (d) => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+			const start = new Date(startDate);
+			const end = new Date(endDate);
+			const map = (dailyRes || []).reduce((acc, r) => { acc[r._id] = r; return acc; }, {});
+
+			const filled = [];
+			const cur = new Date(start);
+			while (cur <= end) {
+				const key = formatDateVN(cur);
+				const existing = map[key] || { _id: key, totalRevenue: 0, totalQuantity: 0, totalOrders: 0 };
+				existing.totalRevenue = Number(existing.totalRevenue || 0);
+				existing.totalQuantity = Number(existing.totalQuantity || 0);
+				existing.totalOrders = Number(existing.totalOrders || 0);
+				existing.dateISO = new Date(key + 'T00:00:00+07:00').toISOString();
+				existing.date = key;
+				filled.push(existing);
+				cur.setDate(cur.getDate() + 1);
+			}
+			dailyRes = filled;
+		}
+	}
+
+	if (hasProduct || (!hasProduct && !hasDateRange)) {
+		productRes = await Order.aggregate(productPipeline);
+	}
 
 	return res.success({ daily: dailyRes, byProduct: productRes }, "Thống kê doanh thu (ngày & sản phẩm)", 200);
 };
