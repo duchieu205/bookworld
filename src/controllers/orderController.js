@@ -134,7 +134,7 @@ export const createOrder = async (req, res) => {
     status: "Chờ xử lý",
     payment: {
       method: payment.method || "cod",
-      status: "Chưa thanh toán",
+      status: "CCD",
     },
   });
 
@@ -269,7 +269,9 @@ export const getAllOrders = async (req, res) => {
     throw createError(403, "Chỉ admin mới được truy cập");
   }
 
-  const orders = await Order.find().sort({ createdAt: -1 });
+   const orders = await Order.find()
+    .populate("user_id", "-password")
+    .sort({ createdAt: -1 });
   res.json({ success: true, data: orders });
 };
 
@@ -290,50 +292,46 @@ export const updateOrderStatus = async (req, res) => {
     const oldStatus = order.status;
 
     const validTransitions = {
-      "Chờ xử lý": ["Đã xác nhận", "Đã hủy"],
-      "Đã xác nhận": ["Đang chuẩn bị hàng", "Đã hủy"],
-      "Đang chuẩn bị hàng": ["Đang giao hàng", "Đã hủy"],
-      "Đang giao hàng": ["Giao hàng thành công", "Giao hàng không thành công", "Đã hủy"],
-      "Giao hàng không thành công": ["Đang giao hàng", "Trả hàng/Hoàn tiền", "Đã hủy"],
-      "Giao hàng thành công": ["Trả hàng/Hoàn tiền", "Đã hủy"],
-      "Trả hàng/Hoàn tiền": [],
-      "Đã hủy": [],
+      "Chờ xử lý": ["Đã xác nhận"],
+      "Đã xác nhận": ["Đang chuẩn bị hàng"],
+      "Đang chuẩn bị hàng": ["Đang giao hàng"],
+      "Đang giao hàng": [
+        "Giao hàng không thành công",
+        "Giao hàng thành công",
+      ],
+      "Giao hàng không thành công": ["Đang giao hàng", "Giao hàng thành công"],
+      "Giao hàng thành công": [],
     };
 
+    
+
+    if (oldStatus === "Giao hàng không thành công") {
+      const failCount = order.status_logs.filter(
+        (log) => log.status === "Giao hàng không thành công"
+      ).length;
+
+      if (failCount >= 2) {
+        throw createError(
+          400,
+          "Đơn hàng đã giao thất bại 2 lần, hệ thống sẽ tự động huỷ và hoàn tiền"
+        );
+      }
+    }
     const allowed = validTransitions[oldStatus] || [];
     if (!allowed.includes(status)) throw createError(400, `Không thể chuyển từ "${oldStatus}" sang "${status}"`);
-
-    if (oldStatus === "Giao hàng không thành công" && status === "Đang giao hàng") {
-      const hasReturned = Array.isArray(order.status_logs) && order.status_logs.some(log => log.status === "Đang giao hàng");
-      if (hasReturned) throw createError(400, "Không thể quay lại giao hàng lần nữa");
-    }
-
-    if (status === "Đang giao hàng" && order.payment.method === "vnpay" && order.payment.status !== "Đã thanh toán") {
+    // VNPay: phải thanh toán trước khi giao
+    if (
+      status === "Đang giao hàng" &&
+      order.payment.method === "vnpay" &&
+      order.payment.status !== "Đã thanh toán"
+    ) {
       throw createError(400, "Đơn hàng chưa thanh toán");
     }
-
-    // Restock on cancel/return
-    if (["Đã hủy", "Trả hàng/Hoàn tiền"].includes(status)) {
-      for (const item of order.items) {
-        if (item.variant_id) {
-          await Variant.findByIdAndUpdate(item.variant_id, { $inc: { quantity: item.quantity } });
-        }
-      }
-      order.payment.status = "Đã hủy";
-    }
-
-    // COD delivered -> mark as paid
-    if (status === "Giao hàng thành công" && order.payment.method === "cod") {
-      order.payment.status = "Đã thanh toán";
-    }
-
-    if (note) order.note = order.note ? `${order.note}\n[Admin] ${note}` : `[Admin] ${note}`;
 
     order.status = status;
     order.status_logs = order.status_logs || [];
     order.status_logs.push({ status, note: note || `Chuyển trạng thái từ "${oldStatus}"`, updatedBy: req.user._id, updatedAt: new Date() });
 
-    // If payment just became confirmed (transitioned to paid), atomically increment discount usage
     const justBecamePaid = prevPaymentStatus !== 'Đã thanh toán' && order.payment.status === 'Đã thanh toán';
     if (justBecamePaid && order.discount && order.discount.code) {
       const discount = await Discount.findOne({ code: order.discount.code });
@@ -351,7 +349,6 @@ export const updateOrderStatus = async (req, res) => {
         }
       }
     }
-
     await order.save();
     return res.json({ success: true, message: "Cập nhật trạng thái thành công", data: order });
   } catch (err) {
@@ -367,11 +364,18 @@ export const updateOrderStatus = async (req, res) => {
 ========================= */
 export const cancelOrder = async (req, res) => {
   const order = await Order.findById(req.params.id);
+  const { note } = req.body;
   if (!order) throw createError(404, "Đơn hàng không tồn tại");
+
+  const prevPaymentStatus = order.payment.status;
 
   const isOwner = String(order.user_id) === String(req.user?._id);
   const isAdmin = req.user?.role === "admin";
+  const cancelByText = isAdmin ? "Admin" : "Người dùng";
 
+  if (isAdmin && !note) {
+  throw createError(400, "Admin phải nhập lý do hủy đơn");
+  }
   if (isOwner && order.status !== "Chờ xử lý") {
     throw createError(400, "Không thể hủy đơn ở trạng thái hiện tại");
   }
@@ -382,7 +386,7 @@ export const cancelOrder = async (req, res) => {
 
   if(order.payment.method === "vnpay" || order.payment.method === "wallet") {
   
-      const userId = req.user && req.user._id;
+      const userId = order.user_id;
       const wallet = await Wallet.findOne({user: userId});
       await WalletTransaction.create({
         wallet: wallet._id,
@@ -396,8 +400,27 @@ export const cancelOrder = async (req, res) => {
       await wallet.save()
   }
 
-  order.status = "Đã hủy";
-  order.payment.status = "Đã hủy";
+  if (prevPaymentStatus === "Đã thanh toán" &&order.discount?.code) {
+    await Discount.findOneAndUpdate(
+      { code: order.discount.code, usedCount: { $gt: 0 } },
+      { $inc: { usedCount: -1 } }
+    );
+  }
+
+  const oldStatus = order.status;
+  const newStatus = "Đã hủy";
+
+ 
+    order.status = newStatus;
+
+
+    order.status_logs = order.status_logs || [];
+    order.status_logs.push({
+      status: newStatus,
+      note: `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`,
+      updatedBy: req.user?._id,
+      updatedAt: new Date(),
+    });
 
   for (const item of order.items) {
     if (item.variant_id) {
@@ -406,7 +429,7 @@ export const cancelOrder = async (req, res) => {
       });
     }
   }
-
+  order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
   await order.save();
 
   res.json({
@@ -500,11 +523,23 @@ export const requestReturnOrder = async (req, res) => {
       return res.status(400).json({
         message: "Đơn hàng không đủ điều kiện trả",
       });
+    const oldStatus = order.status;
+    const newStatus = "Đang yêu cầu Trả hàng/Hoàn tiền";
 
+    // Cập nhật trạng thái
+    order.status = newStatus;
 
-    order.status = "Đang yêu cầu Trả hàng/Hoàn tiền";
+    // Push log trạng thái
+    order.status_logs = order.status_logs || [];
+    order.status_logs.push({
+      status: newStatus,
+      note: `Chuyển trạng thái từ "${oldStatus}`,
+      updatedBy: userId,
+      updatedAt: new Date(),
+    });
 
     await order.save();
+
 
     res.json({
       message: "Gửi yêu cầu trả hàng / hoàn tiền thành công",
@@ -522,6 +557,8 @@ export const approveReturnOrder = async (req, res) => {
     const { orderId } = req.params;
     const order = await Order.findById(orderId);
     
+    const prevPaymentStatus = order.payment.status;
+
     const adminId = req.user?._id;
     if (!adminId) throw createError(401, "Chưa đăng nhập");
 
@@ -530,6 +567,15 @@ export const approveReturnOrder = async (req, res) => {
     if (order.status === "Trả hàng/Hoàn tiền thành công") {
       return res.status(400).json({ message: "Đơn hàng đã được hoàn tiền" });
     }
+
+// rollback voucher nếu đơn đã từng thanh toán
+    if (prevPaymentStatus === "Đã thanh toán" && order.discount?.code) {
+      await Discount.findOneAndUpdate(
+        { code: order.discount.code, usedCount: { $gt: 0 } },
+        { $inc: { usedCount: -1 } }
+      );
+    }
+
     for (const item of order.items) {
       if (item.variant_id) {
         await Variant.findByIdAndUpdate(item.variant_id, {
@@ -551,8 +597,23 @@ export const approveReturnOrder = async (req, res) => {
     wallet.balance += order.total;
     await wallet.save();
 
-    order.status = "Trả hàng/Hoàn tiền thành công";
+    const oldStatus = order.status;
+    const newStatus = "Trả hàng/Hoàn tiền thành công";
+
+    // Cập nhật trạng thái
+    order.status = newStatus;
+
+    // Push log trạng thái
+    order.status_logs = order.status_logs || [];
+    order.status_logs.push({
+      status: newStatus,
+      note: `Chuyển trạng thái từ "${oldStatus}`,
+      updatedBy: adminId,
+      updatedAt: new Date(),
+    });
+
     await order.save();
+
 
     res.json({
       message: "Đã duyệt Trả hàng/Hoàn tiền",
@@ -563,6 +624,4 @@ export const approveReturnOrder = async (req, res) => {
     res.status(500).json({ message: "Lỗi server" });
   }
 };
-
-
 
