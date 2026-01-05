@@ -97,7 +97,7 @@ export const getTotalRevenue = async (req, res) => {
 	// If a specific product is requested, compute totals based on items
 	if (product) {
 		// unwind items and lookup product/variant info to match by id or name
-		console.log("Analytics getTotalRevenue product filter:", product);
+		if (process.env.NODE_ENV === 'development') console.log("Analytics getTotalRevenue product filter:", product);
 		pipeline.push({ $unwind: "$items" });
 		pipeline.push({
 			$lookup: {
@@ -170,7 +170,7 @@ export const getTotalRevenue = async (req, res) => {
 
 	return res.success(data, "Thống kê doanh thu tổng", 200);
 };
-//aaaaa
+
 /**
  * Get revenue by product with optional date range filter
  * Query params: startDate (ISO string), endDate (ISO string)
@@ -304,7 +304,7 @@ export const getDailyRevenue = async (req, res) => {
 
 	if (product) {
 		// lookup product/variant and filter items
-		console.log("Analytics getDailyRevenue product filter:", product);
+		if (process.env.NODE_ENV === 'development') console.log("Analytics getDailyRevenue product filter:", product);
 		pipeline.push({
 			$lookup: {
 				from: "products",
@@ -409,6 +409,7 @@ export const getDailyAndProductRevenue = async (req, res) => {
 	if (!req.user || req.user.role !== "admin") throw createError(403, "Chỉ admin mới xem thống kê");
 
 	const { startDate, endDate } = req.query;
+	const _debug = req.query && (req.query._debug === '1' || req.query._debug === 'true');
 	const rawProduct = req.query.product || req.query.productId || req.query.productName;
 	const product = normalizeProductParam(rawProduct);
 
@@ -556,7 +557,138 @@ export const getDailyAndProductRevenue = async (req, res) => {
 		productRes = await Order.aggregate(productPipeline);
 	}
 
-	return res.success({ daily: dailyRes, byProduct: productRes }, "Thống kê doanh thu (ngày & sản phẩm)", 200);
+	// --- Summary computation: current vs previous period (default to last 7 days if no range provided)
+	let currentStart, currentEnd;
+	if (startDate && endDate) {
+		currentStart = new Date(startDate);
+		currentEnd = new Date(endDate);
+		// normalize to full-day inclusive boundaries
+		currentStart.setHours(0, 0, 0, 0);
+		currentEnd.setHours(23, 59, 59, 999);
+	} else {
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		currentEnd = new Date(today);
+		currentEnd.setHours(23, 59, 59, 999);
+		currentStart = new Date(today);
+		currentStart.setDate(currentStart.getDate() - 6); // last 7 days
+		currentStart.setHours(0, 0, 0, 0);
+	}
+
+	// Compute previous period as symmetric range immediately before currentStart/currentEnd
+	const duration = currentEnd.getTime() - currentStart.getTime() + 1;
+	const prevEnd = new Date(currentStart.getTime() - 1);
+	const prevStart = new Date(prevEnd.getTime() - duration + 1);
+
+	const rangeMatch = (s, e) => {
+		const m = Object.assign({}, matchFilter);
+		// use inclusive datetime boundaries since we normalize start/end to exact times
+		m.createdAtDate = { $gte: new Date(s), $lte: new Date(e) };
+		return m;
+	};
+
+	const summaryPipelineForMatch = (base) => [
+		dateConversion,
+		{ $match: base },
+		{
+			$group: {
+				_id: null,
+				totalRevenue: {
+					$sum: {
+						$ifNull: [
+							"$total",
+							"$totalPrice",
+							{ $reduce: { input: { $ifNull: ["$items", []] }, initialValue: 0, in: { $add: ["$$value", { $multiply: [ { $ifNull: ["$$this.price", 0] }, { $ifNull: ["$$this.quantity", 0] } ] } ] } } },
+							0
+						]
+					}
+				},
+			// Paid count: either payment marked paid OR admin marked delivered (treat as paid)
+			paidCount: { $sum: { $cond: [ { $or: [ { $in: ["$payment.status", ["paid", "Đã thanh toán"] ] }, { $eq: ["$status", "Giao hàng thành công"] } ] }, 1, 0 ] } },
+			// Delivered count: either explicitly delivered OR paid (treated as delivered for this metric)
+			deliveredCount: { $sum: { $cond: [ { $or: [ { $in: ["$payment.status", ["paid", "Đã thanh toán"] ] }, { $eq: ["$status", "Giao hàng thành công"] } ] }, 1, 0 ] } },
+			cancelledCount: { $sum: { $cond: [ { $eq: ["$status", "Đã hủy"] }, 1, 0 ] } },
+				totalOrders: { $sum: 1 },
+			}
+		},
+		{ $project: { _id: 0, totalRevenue: 1, paidCount: 1, deliveredCount: 1, cancelledCount: 1, totalOrders: 1 } }
+	];
+
+	const currMatch = rangeMatch(currentStart, currentEnd);
+	const prevMatch = rangeMatch(prevStart, prevEnd);
+
+	if (process.env.NODE_ENV === 'development') console.log('Analytics summary ranges: current', currentStart.toISOString(), currentEnd.toISOString(), 'previous', prevStart.toISOString(), prevEnd.toISOString());
+
+	const [currSummaryRes, prevSummaryRes] = await Promise.all([
+		Order.aggregate(summaryPipelineForMatch(currMatch)),
+		Order.aggregate(summaryPipelineForMatch(prevMatch)),
+	]);
+
+	const currSummary = currSummaryRes[0] || { totalRevenue: 0, paidCount: 0, deliveredCount: 0, cancelledCount: 0, totalOrders: 0 };
+	const prevSummary = prevSummaryRes[0] || { totalRevenue: 0, paidCount: 0, deliveredCount: 0, cancelledCount: 0, totalOrders: 0 };
+
+	if (process.env.NODE_ENV === 'development') console.log('Analytics summary values:', { currSummary, prevSummary });
+
+	// Development debug: return summaries & matches for troubleshooting
+	if (_debug && process.env.NODE_ENV === 'development') {
+		return res.success({ daily: dailyRes, byProduct: productRes, topProduct: null, summary: { currentRevenue: currSummary.totalRevenue || 0, previousRevenue: prevSummary.totalRevenue || 0, paidCount: currSummary.paidCount || 0, deliveredCount: currSummary.deliveredCount || 0, cancelledCount: currSummary.cancelledCount || 0, totalOrders: currSummary.totalOrders || 0 }, debug: { currSummary, prevSummary, currMatch, prevMatch, duration } }, 'Debug summary', 200);
+	}
+
+	let changePercent = null;
+	let changeIsNew = false;
+	if (prevSummary.totalRevenue > 0) {
+		changePercent = ((currSummary.totalRevenue - prevSummary.totalRevenue) / prevSummary.totalRevenue) * 100;
+		changePercent = Math.round(changePercent * 100) / 100;
+	} else if (currSummary.totalRevenue > 0) {
+		// previous period had zero revenue, mark as new instead of showing a misleading percentage
+		changePercent = null;
+		changeIsNew = true;
+	} else {
+		changePercent = 0;
+	}
+
+	const summary = {
+		currentRevenue: Number(currSummary.totalRevenue || 0),
+		previousRevenue: Number(prevSummary.totalRevenue || 0),
+		changePercent,
+		changeIsNew,
+		paidCount: currSummary.paidCount || 0,
+		deliveredCount: currSummary.deliveredCount || 0,
+		cancelledCount: currSummary.cancelledCount || 0,
+		totalOrders: currSummary.totalOrders || 0,
+	};
+
+	// --- Top product computation (unchanged logic)
+	let topProduct = null;
+	if (hasProduct) {
+		const topProductPipeline = [dateConversion, { $match: matchFilter }];
+		topProductPipeline.push({ $unwind: "$items" });
+		topProductPipeline.push({ $lookup: { from: "products", localField: "items.product_id", foreignField: "_id", as: "product_info" } });
+		topProductPipeline.push({ $unwind: { path: "$product_info", preserveNullAndEmptyArrays: true } });
+		topProductPipeline.push({ $lookup: { from: "variants", localField: "items.variant_id", foreignField: "_id", as: "variant_info" } });
+		topProductPipeline.push({ $unwind: { path: "$variant_info", preserveNullAndEmptyArrays: true } });
+		topProductPipeline.push({
+			$group: {
+				_id: { $ifNull: ["$items.product_id", "$items.variant_id"] },
+				productName: { $first: { $ifNull: ["$product_info.name", "$variant_info.name", "Không rõ"] } },
+				productImage: { $first: { $ifNull: ["$product_info.images", []] } },
+				totalQuantitySold: { $sum: { $ifNull: ["$items.quantity", 0] } },
+				totalRevenue: { $sum: { $multiply: [ { $ifNull: ["$items.price", "$variant_info.price", "$product_info.price", 0] }, { $ifNull: ["$items.quantity", 0] } ] } },
+				totalOrders: { $sum: 1 },
+				averagePrice: { $avg: { $ifNull: ["$items.price", "$variant_info.price", "$product_info.price", 0] } },
+			}
+		});
+		topProductPipeline.push({ $sort: { totalRevenue: -1 } });
+		topProductPipeline.push({ $limit: 1 });
+
+		const topRes = await Order.aggregate(topProductPipeline);
+		topProduct = topRes[0] || null;
+		if (process.env.NODE_ENV === 'development') console.log('Analytics getDailyAndProductRevenue topProduct (ignoring product filter):', JSON.stringify(topProduct));
+	} else {
+		topProduct = (productRes && productRes.length) ? productRes[0] : null;
+	}
+
+	return res.success({ daily: dailyRes, byProduct: productRes, topProduct, summary }, "Thống kê doanh thu (ngày & sản phẩm)", 200);
 };
 
 /**
@@ -772,7 +904,7 @@ export const getTopCustomers = async (req, res) => {
 
 	return res.success(result, "Top khách hàng theo chi tiêu", 200);
 };
-// adaaaa
+
 export default {
 	getTotalRevenue,
 	getRevenueByProduct,
