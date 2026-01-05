@@ -52,9 +52,9 @@ export const requireAdmin = async (req, res, next) => {
 
     const user = await User.findById(decoded.userId || decoded.id);
 
-    console.log("--- KIỂM TRA QUYỀN ADMIN ---");
-    console.log("Email:", user ? user.email : "Không tìm thấy user");
-    console.log("Role trong DB:", user ? user.role : "N/A");
+    // console.log("--- KIỂM TRA QUYỀN ADMIN ---");
+    // console.log("Email:", user ? user.email : "Không tìm thấy user");
+    // console.log("Role trong DB:", user ? user.role : "N/A");
 
     if (!user || user.role !== "admin") {
       return res.status(403).json({ message: "Chỉ admin mới được truy cập" });

@@ -12,7 +12,9 @@ import {
   cancelOrder,
   requestReturnOrder,
   approveReturnOrder,
-  refundOrderToWallet
+  refundOrderToWallet,
+  rejectReturnOrder,
+  rejectReturnOrderCient
 
 } from "../controllers/orderController.js";
 
@@ -74,10 +76,16 @@ router.post("/:id/refund", authMiddleware.verifyToken, handleAsync(refundOrderTo
 
 
 
-router.post("/return-request/:orderId",authMiddleware.verifyToken,requestReturnOrder);
+router.put("/return-request/:orderId",authMiddleware.verifyToken,requestReturnOrder);
 
 
-router.post("/approveReturnOrder/:orderId",authMiddleware.requireAdmin,approveReturnOrder);
+router.put("/approveReturnOrder/:orderId",authMiddleware.requireAdmin,approveReturnOrder);
+
+router.put("/rejectReturnOrder/:orderId", authMiddleware.requireAdmin, rejectReturnOrder);
+router.put("/rejectReturnOrderCient/:orderId",authMiddleware.verifyToken,rejectReturnOrderCient);
+
+
+rejectReturnOrder
 // VNPay specific routes
 router.post("/vnpay/create", authMiddleware.verifyToken, handleAsync(createOrderWithVnPay));
 router.get("/vnpay-return", vnpayReturn);

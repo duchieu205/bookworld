@@ -299,7 +299,7 @@ export const updateOrderStatus = async (req, res) => {
         "Giao hàng không thành công",
         "Giao hàng thành công",
       ],
-      "Giao hàng không thành công": ["Đang giao hàng", "Giao hàng thành công"],
+      "Giao hàng không thành công": ["Đang giao hàng"],
       "Giao hàng thành công": [],
     };
 
@@ -512,6 +512,10 @@ export const refundOrderToWallet = async (req, res) => {
 export const requestReturnOrder = async (req, res) => {
   try {
     const userId = req.user?._id;
+    const {reason, images} = req.body;
+    if (!reason || !images) {
+      throw createError(401, "Thiếu thông tin gửi lên"); 
+    }
     if (!userId) throw createError(401, "Chưa đăng nhập");
     const { orderId } = req.params;
 
@@ -539,8 +543,10 @@ export const requestReturnOrder = async (req, res) => {
       updatedAt: new Date(),
     });
 
-    await order.save();
+    order.images_return = images;
+    order.note = reason;
 
+    await order.save();
 
     res.json({
       message: "Gửi yêu cầu trả hàng / hoàn tiền thành công",
@@ -626,3 +632,61 @@ export const approveReturnOrder = async (req, res) => {
   }
 };
 
+export const rejectReturnOrder = async (req, res) => {
+   try {
+    const { orderId } = req.params;
+    const order = await Order.findById(orderId);
+    if (!order) throw createError(404, "Đơn hàng không tồn tại");
+    const adminId = req.user?._id;
+    if (!adminId) throw createError(401, "Chưa đăng nhập");
+
+    const oldStatus = order.status;
+    order.status_logs.push({
+      status: "Từ chối yêu cầu trả hàng/Hoàn tiền",
+      note: `Chuyển trạng thái từ "${oldStatus}`,
+      updatedBy: adminId,
+      updatedAt: new Date(),
+    });
+    order.status = "Giao hàng thành công";
+    
+     order.status_logs.push({
+      status: "Giao hàng thành công",
+      note: `Chuyển trạng thái từ "${order.status} do đã từ chối yêu cầu`,
+      updatedBy: adminId,
+      updatedAt: new Date(),
+    });
+    order.images_return = null;
+    await order.save();
+  }
+
+   catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+} 
+
+export const rejectReturnOrderCient =  async (req, res) => {
+  try {
+    const {orderId} = req.params;
+    const user = req.user?._id;
+    if (!user) throw createError(401, "Chưa đăng nhập");
+     const order = await Order.findById(orderId);
+    if (!order) throw createError(404, "Đơn hàng không tồn tại");
+  
+    oldStatus = order.status;
+    order.status_logs.push({
+      status: "Đã hủy yêu cầu trả hàng/Hoàn tiền",
+      note: `Chuyển trạng thái từ "${oldStatus}`,
+      updatedBy: user,
+      updatedAt: new Date(),
+    });
+    order.status = "Giao hàng thành công";
+    await order.save();
+
+  }
+
+  catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+}
