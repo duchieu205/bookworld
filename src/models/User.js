@@ -13,6 +13,20 @@ role: {
     default: "user"
 },
 
+status: {
+  type: String,
+  enum: ["active", "inactive"],
+  default: "inactive",
+},
+emailOtp: String,
+emailOtpExpiredAt: Date,
+emailOtpAttempts: {
+  type: Number,
+  default: 0,
+},
+emailOtpLastSent: Date,
+
+
 resetPasswordOTP: String,
 resetPasswordExpires: Date,
 otpRequestCount: { type: Number, default: 0 },

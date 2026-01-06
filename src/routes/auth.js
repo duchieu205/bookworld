@@ -34,7 +34,11 @@ const router = express.Router();
     );
     router.post("/forgot-password" ,forgotPasswordValidator, authMiddleware.forgotPasswordLimiter, authController.forgotPassword);
     router.post("/verify-otp", verifyOTPValidator, authController.verifyResetOTP);
-    router.post("/reset-password", resetPasswordValidator, authMiddleware.verifyResetToken, authController.resetPassword);
+    router.post("/reset-password", resetPasswordValidator, authController.resetPassword);
+
+    router.post("/verify-email", verifyOTPValidator, authController.verifyEmailOtp);
+    router.post("/resend-otp", authController.resendVerifyOtp);
+
 
 
     router.get('/me', authMiddleware.verifyToken ,authController.getUserId);

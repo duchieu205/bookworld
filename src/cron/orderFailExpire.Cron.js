@@ -47,7 +47,7 @@ export const orderFailExpireCron = () => {
         /* =====================
             UPDATE ORDER
         ===================== */
-        order.status = "Huỷ & hoàn tiền do giao hàng thất bại";
+        order.status = "Tự động hủy đơn do giao hàng thất bại sau 2 lần. Đơn hàng sẽ được hoàn tiền nếu quý khách hành đã thanh toán với ví hoặc VnPay";
         order.auto_cancelled = true;
 
         order.status_logs.push({
@@ -56,13 +56,16 @@ export const orderFailExpireCron = () => {
             updatedBy: null,
         });
 
+        order.status = "Đã hủy";
+        order.status_logs.push({
+            status: order.status,
+            note: "Cron tự động hủy đơn sau 2 lần giao hành không thành công",
+            updatedBy: null,
+        });
+
         await order.save();
-        }
         console.log("CRON auto-cancel running at", new Date().toLocaleString());
-        if (orders.length) {
-            console.log(
-            `[CRON] Đã cập nhật ${orders.length} đơn quá hạn thanh toán`
-            );
+    
       }
     } catch (err) {
         console.error("CRON auto-cancel error:", err);

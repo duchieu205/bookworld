@@ -66,6 +66,7 @@ const orderSchema = new Schema(
         "Đang yêu cầu Trả hàng/Hoàn tiền",
         "Trả hàng/Hoàn tiền thành công",
         "Huỷ & hoàn tiền do giao hàng thất bại",
+        "Tự động hủy đơn do giao hàng thất bại sau 2 lần. Đơn hàng sẽ được hoàn tiền nếu quý khách hành đã thanh toán với ví hoặc VnPay",
         "Hoàn tất"
       ],
       default: "Chờ xử lý",
