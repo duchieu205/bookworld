@@ -434,7 +434,7 @@ export const getDailyAndProductRevenue = async (req, res) => {
 			matchFilter.createdAtDate.$lt = end;
 		}
 	}
-
+    // git
 	const hasDateRange = startDate && endDate;
 	const hasProduct = product && product !== "undefined" && product !== "null";
 
