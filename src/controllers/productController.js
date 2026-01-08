@@ -323,14 +323,19 @@ export const getProductById = async (req, res, next) => {
 
 // Update product
 export const updateProduct = async (req, res) => {
+   console.log("PARAM ID:", req.params.id);
+  console.log("REQ BODY:", req.body);
   const { id } = req.params;
-  const updates = req.body;
+  const {status} = req.body;
 
+  if (!["active", "inactive"].includes(status)) {
+    throw createError(400, "Trạng thái không hợp lệ");
+  }
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ success: false, message: "Invalid product ID" });
   }
 
-  const product = await Product.findByIdAndUpdate(id, updates, { new: true });
+  const product = await Product.findByIdAndUpdate(id, {status}, {new: true});
   if (!product) throw createError(404, "Product not found");
   return res.success(product, "Product updated", 200);
 };

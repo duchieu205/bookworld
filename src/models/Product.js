@@ -8,7 +8,6 @@ const productSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    
     author: {
       type: String,
       required: true
@@ -49,6 +48,12 @@ const productSchema = new mongoose.Schema(
     size: {
       type: String, 
       default: ""
+    },
+    status: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      required: true,
     },
 
     sku: {
