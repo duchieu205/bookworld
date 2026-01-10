@@ -369,6 +369,8 @@ export const updateProduct = async (req, res) => {
     return res.status(400).json({ success: false, message: "Invalid product ID" });
   }
 
+  
+
   const product = await Product.findByIdAndUpdate(id, updates, {new: true});
   if (!product) throw createError(404, "Product not found");
   return res.success(product, "Product updated", 200);

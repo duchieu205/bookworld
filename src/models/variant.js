@@ -20,6 +20,7 @@
 			 sku: {
 				type: String,
 				unique: true,
+				sparse: true, 
 				uppercase: true,
 				},
 			quantity: {
