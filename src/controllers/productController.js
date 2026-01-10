@@ -56,7 +56,7 @@ export const createProduct = async (req, res) => {
 
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {
-  const { page = 1, limit, search, category, status, sort, minPrice, maxPrice, minRating } = req.query;
+  const { page = 1, limit, search, category, status, sort, minPrice, maxPrice, minRating, author } = req.query;
 
   const pageNum = Math.max(1, parseInt(page));
   const lim = limit !== undefined ? Number(limit) : null;
@@ -71,6 +71,11 @@ export const getProducts = async (req, res) => {
     ];
   }
   if (category) match.category = new mongoose.Types.ObjectId(category);
+  
+  
+  if (author) {
+    match.author = { $regex: author, $options: "i" };
+  }
 
   const pipeline = [
     { $match: match },
@@ -166,21 +171,21 @@ export const getProducts = async (req, res) => {
       }
     },
 
-    // FILTER THEO GIÁ (sau khi đã tính displayPrice)
-  {
-  $match: {
-    $or: [
-      { minVariantPrice: null },
-      {
-        $and: [
-          { minVariantPrice: { $ne: null } },
-          { minVariantPrice: { $gte: minPrice ? Number(minPrice) : 0 } },
-          { minVariantPrice: { $lte: maxPrice ? Number(maxPrice) : 999999999 } }
+    // FILTER THEO GIÁ
+    {
+      $match: {
+        $or: [
+          { minVariantPrice: null },
+          {
+            $and: [
+              { minVariantPrice: { $ne: null } },
+              { minVariantPrice: { $gte: minPrice ? Number(minPrice) : 0 } },
+              { minVariantPrice: { $lte: maxPrice ? Number(maxPrice) : 999999999 } }
+            ]
+          }
         ]
       }
-    ]
-  }
-},
+    },
 
     // FILTER THEO RATING
     ...(minRating ? [{
@@ -249,26 +254,26 @@ export const getProducts = async (req, res) => {
             $cond: [
               { $gt: [{ $size: "$variants" }, 0] },
               { $min: "$variants.price" },
-             null
+              null
             ]
           }
         }
       },
       // FILTER THEO GIÁ
-{
-  $match: {
-    $or: [
-      { displayPrice: null },
       {
-        $and: [
-          { displayPrice: { $ne: null } },
-          { displayPrice: { $gte: minPrice ? Number(minPrice) : 0 } },
-          { displayPrice: { $lte: maxPrice ? Number(maxPrice) : 999999999 } }
-        ]
-      }
-    ]
-  }
-},
+        $match: {
+          $or: [
+            { displayPrice: null },
+            {
+              $and: [
+                { displayPrice: { $ne: null } },
+                { displayPrice: { $gte: minPrice ? Number(minPrice) : 0 } },
+                { displayPrice: { $lte: maxPrice ? Number(maxPrice) : 999999999 } }
+              ]
+            }
+          ]
+        }
+      },
       { $count: "total" },
     ]),
   ]);
@@ -282,6 +287,22 @@ export const getProducts = async (req, res) => {
     "Products retrieved",
     200
   );
+};
+
+export const getAuthors = async (req, res) => {
+  try {
+    const authors = await Product.distinct("author");
+    const sortedAuthors = authors.filter(a => a && a.trim()).sort();
+    
+    return res.success(
+      sortedAuthors,
+      "Authors retrieved",
+      200
+    );
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
 };
 
 // Get product detail by id
@@ -393,5 +414,6 @@ export default {
   updateProduct,
   deleteProduct,
   searchProducts,
-  getRelatedProducts
+  getRelatedProducts,
+  getAuthors
 };
