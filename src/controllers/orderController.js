@@ -7,6 +7,7 @@ import createError from "../utils/createError.js";
 import mongoose from "mongoose";
 import WalletTransaction from "../models/walletTransaction.model.js";
 import Wallet from "../models/wallet.js";
+import {sendCancelOrderMail, sendRejectReturnMail} from "../utils/sendEmail.js";
 
 /* =========================
    CREATE ORDER
@@ -303,8 +304,6 @@ export const updateOrderStatus = async (req, res) => {
       "Giao hàng thành công": [],
     };
 
-    
-
     if (oldStatus === "Giao hàng không thành công") {
       const failCount = order.status_logs.filter(
         (log) => log.status === "Giao hàng không thành công"
@@ -349,6 +348,9 @@ export const updateOrderStatus = async (req, res) => {
         }
       }
     }
+    if (order.status === "Giao hàng thành công") {
+      order.payment.status = "Đã thanh toán";
+    }
     await order.save();
     return res.json({ success: true, message: "Cập nhật trạng thái thành công", data: order });
   } catch (err) {
@@ -363,13 +365,14 @@ export const updateOrderStatus = async (req, res) => {
    CANCEL ORDER (USER / ADMIN)
 ========================= */
 export const cancelOrder = async (req, res) => {
-  const order = await Order.findById(req.params.id);
+ const order = await Order.findById(req.params.id)
+  .populate("user_id", "email name");
   const { note } = req.body;
   if (!order) throw createError(404, "Đơn hàng không tồn tại");
 
   const prevPaymentStatus = order.payment.status;
 
-  const isOwner = String(order.user_id) === String(req.user?._id);
+  const isOwner = String(order.user_id._id) === String(req.user?._id);
   const isAdmin = req.user?.role === "admin";
   const cancelByText = isAdmin ? "Admin" : "Người dùng";
 
@@ -382,8 +385,6 @@ export const cancelOrder = async (req, res) => {
   if (!isOwner && !isAdmin) {
     throw createError(403, "Không có quyền hủy đơn");
   }
-
-
 
   if((order.payment.method === "vnpay" || order.payment.method === "wallet") && order.payment.status === "Đã thanh toán") {
       const userId = order.user_id;
@@ -429,9 +430,23 @@ export const cancelOrder = async (req, res) => {
         $inc: { quantity: item.quantity },
       });
     }
-  }  order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
-  order.payment.status = "Thất bại";
+  }  
+  order.note = `${cancelByText} hủy đơn${note ? ` – Lý do: ${note}` : ""}`;
+  order.payment.status = "Đã hủy";
   await order.save();
+  try {
+    if(isAdmin) {
+      await sendCancelOrderMail({
+        to: order.user_id.email,
+        order,
+        note,
+        prevPaymentStatus,
+      });
+    }
+      
+    } catch (error) {
+      console.error("Send cancel order mail failed:", error);
+    }
 
   res.json({
     success: true,
@@ -635,10 +650,12 @@ export const approveReturnOrder = async (req, res) => {
 export const rejectReturnOrder = async (req, res) => {
    try {
     const { orderId } = req.params;
-    const order = await Order.findById(orderId);
-    if (!order) throw createError(404, "Đơn hàng không tồn tại");
     const adminId = req.user?._id;
     if (!adminId) throw createError(401, "Chưa đăng nhập");
+    const order = await Order.findById(orderId)
+    .populate("user_id", "email name");
+    if (!order) throw createError(404, "Đơn hàng không tồn tại");
+    
 
     const oldStatus = order.status;
     order.status_logs.push({
@@ -657,6 +674,16 @@ export const rejectReturnOrder = async (req, res) => {
     });
     order.images_return = null;
     await order.save();
+
+    try {
+        await sendRejectReturnMail({
+          to: order.user_id.email,
+          order,
+          reason: req.body.note,
+        });
+      } catch (err) {
+        console.error("Send reject return mail failed:", err);
+    }
   }
 
    catch (err) {
@@ -665,7 +692,7 @@ export const rejectReturnOrder = async (req, res) => {
   }
 } 
 
-export const rejectReturnOrderCient =  async (req, res) => {
+export const rejectReturnOrderClient =  async (req, res) => {
   try {
     const {orderId} = req.params;
     const user = req.user?._id;

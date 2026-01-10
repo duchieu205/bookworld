@@ -14,7 +14,7 @@ import {
   approveReturnOrder,
   refundOrderToWallet,
   rejectReturnOrder,
-  rejectReturnOrderCient
+  rejectReturnOrderClient
 
 } from "../controllers/orderController.js";
 
@@ -82,10 +82,9 @@ router.put("/return-request/:orderId",authMiddleware.verifyToken,requestReturnOr
 router.put("/approveReturnOrder/:orderId",authMiddleware.requireAdmin,approveReturnOrder);
 
 router.put("/rejectReturnOrder/:orderId", authMiddleware.requireAdmin, rejectReturnOrder);
-router.put("/rejectReturnOrderCient/:orderId",authMiddleware.verifyToken,rejectReturnOrderCient);
+router.put("/rejectReturnOrderCient/:orderId",authMiddleware.verifyToken,rejectReturnOrderClient);
 
 
-rejectReturnOrder
 // VNPay specific routes
 router.post("/vnpay/create", authMiddleware.verifyToken, handleAsync(createOrderWithVnPay));
 router.get("/vnpay-return", vnpayReturn);
