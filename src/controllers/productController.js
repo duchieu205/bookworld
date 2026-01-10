@@ -342,9 +342,9 @@ export const getProductById = async (req, res, next) => {
   }
 };
 
-// Update product
-export const updateProduct = async (req, res) => {
-   console.log("PARAM ID:", req.params.id);
+// Update product status
+export const updateProductStatus = async (req, res) => {
+  console.log("PARAM ID:", req.params.id);
   console.log("REQ BODY:", req.body);
   const { id } = req.params;
   const {status} = req.body;
@@ -357,6 +357,19 @@ export const updateProduct = async (req, res) => {
   }
 
   const product = await Product.findByIdAndUpdate(id, {status}, {new: true});
+  if (!product) throw createError(404, "Product not found");
+  return res.success(product, "Product updated", 200);
+};
+
+export const updateProduct = async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid product ID" });
+  }
+
+  const product = await Product.findByIdAndUpdate(id, updates, {new: true});
   if (!product) throw createError(404, "Product not found");
   return res.success(product, "Product updated", 200);
 };
@@ -417,5 +430,6 @@ export default {
   deleteProduct,
   searchProducts,
   getRelatedProducts,
-  getAuthors
+  getAuthors,
+  updateProductStatus
 };

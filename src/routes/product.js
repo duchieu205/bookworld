@@ -24,6 +24,7 @@ router.post("/:id/reviews", authMiddleware.verifyToken, handleAsync(reviewContro
 
 // Update product
 router.put("/:id", authMiddleware.requireAdmin, handleAsync(productController.updateProduct));
+router.put("/status/:id", authMiddleware.requireAdmin, handleAsync(productController.updateProductStatus));
 
 // Delete product
 router.delete("/:id",authMiddleware.requireAdmin, handleAsync(productController.deleteProduct));
