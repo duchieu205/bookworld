@@ -77,6 +77,15 @@ export const updateReview = async (req, res) => {
     throw createError(403, "Bạn không có quyền sửa đánh giá này");
   }
 
+
+  const createdDate = new Date(review.createdAt);
+  const currentDate = new Date();
+  const daysDiff = Math.floor((currentDate - createdDate) / (1000 * 60 * 60 * 24));
+  
+  if (daysDiff < 7) {
+    throw createError(403, "Chỉ có thể chỉnh sửa đánh giá sau 7 ngày kể từ khi tạo");
+  }
+
   if (images && images.length > 5) {
     throw createError(400, "Tối đa 5 ảnh");
   }
@@ -92,7 +101,6 @@ export const updateReview = async (req, res) => {
 
   return res.success(populatedReview, "Đã cập nhật đánh giá");
 };
-
 
 // ================= GET REVIEWS BY PRODUCT =================
 export const getReviewsByProduct = async (req, res) => {

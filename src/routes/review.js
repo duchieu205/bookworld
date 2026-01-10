@@ -11,6 +11,12 @@ router.get(
   handleAsync(reviewController.getReviewsByProduct)
 );
 
+router.get(
+  "/products/:id/can-review",
+  authMiddleware.verifyToken,
+  handleAsync(reviewController.canUserReview)
+);
+
 // Authenticated: Create a review for a product
 router.post(
   "/products/:id",
@@ -46,11 +52,11 @@ router.delete(
   authMiddleware.verifyToken,
   handleAsync(reviewController.deleteReview)
 );
+
 router.put(
   "/:id",
   authMiddleware.verifyToken,
   handleAsync(reviewController.updateReview)
 );
-
 
 export default router;

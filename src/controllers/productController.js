@@ -403,7 +403,9 @@ export const getRelatedProducts = async (req, res) => {
     const related = await Product.find({
         category: product.category,
         _id: { $ne: id }
-    }).limit(6);
+    })
+    .populate("category")  
+    .limit(6);
 
     return res.json({ data: related });
 };
