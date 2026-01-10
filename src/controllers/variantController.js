@@ -31,7 +31,7 @@ export const createVariant = async (req, res, next) => {
       product_id: body.product_id,
       type: body.type,
       price: body.price ?? 0,
-      sku: body.sku ?? "",
+      sku: body.sku || undefined, 
       quantity: body.quantity ?? 0,
       status: body.status ?? "active",
     });
