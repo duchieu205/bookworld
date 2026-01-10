@@ -1,6 +1,8 @@
     import Category from "../models/Category.js";
     import createError from "../utils/createError.js";
     import Product from "../models/Product.js";
+    import mongoose from "mongoose";
+    
     // Hàm tạo slug (bỏ dấu tiếng Việt)
     const generateSlug = (name) => {
         return String(name)
@@ -59,7 +61,8 @@
     // Lấy danh sách categories
     export const getCategories = async (req, res) => {
         const { page = 1, limit = 20, search, status } = req.query;
-        
+         const isAdmin = req.isAdminRequest === true;
+
         // Xây dựng query
         const query = {};
         if (search) {
@@ -67,6 +70,9 @@
                 { name: { $regex: search, $options: "i" } },
                 { description: { $regex: search, $options: "i" } }
             ];
+        }
+         if (!isAdmin) {
+            query.status = "active";
         }
         if (status) query.status = status;
         // Tính pagination
@@ -100,6 +106,9 @@
             throw createError(404, "Không tìm thấy danh mục");
         }
 
+        
+
+
         const products = await Product.find({ category: id })
             .populate({
             path: "variants",
@@ -115,7 +124,22 @@
             "Lấy thông tin danh mục thành công"
         );
     };
-
+    export const updateCategoryStatus = async (req, res) => {
+      const { id } = req.params;
+      const {status} = req.body;
+    
+      if (!["active", "inactive"].includes(status)) {
+        throw createError(400, "Trạng thái không hợp lệ");
+      }
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ success: false, message: "Invalid product ID" });
+      }
+    
+      const category = await Category.findByIdAndUpdate(id, {status}, {new: true});
+      if (!category) throw createError(404, "Product not found");
+      return res.success(category, "Product updated", 200);
+    };
+    
 
     // Cập nhật category
     export const updateCategory = async (req, res) => {
@@ -181,5 +205,6 @@
         getCategories,
         getCategoryById,
         updateCategory,
+        updateCategoryStatus,
         deleteCategory
     };

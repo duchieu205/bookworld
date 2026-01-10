@@ -8,6 +8,10 @@ const router = Router();
 
 // List products (with pagination & filters)
 router.get("/", handleAsync(productController.getProducts));
+router.get("/admin/products", authMiddleware.requireAdmin, (req, res, next) => {
+  req.isAdminRequest = true;
+  next();
+}, handleAsync(productController.getProducts));
 router.get("/search", handleAsync(productController.searchProducts));
 router.get("/authors", handleAsync(productController.getAuthors));
 router.get("/:id/related", handleAsync(productController.getRelatedProducts));

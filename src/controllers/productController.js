@@ -63,7 +63,16 @@ export const getProducts = async (req, res) => {
   const usePagination = lim > 0;
 
   const match = {};
+  const isAdmin = req.isAdminRequest === true;
 
+
+  if (!isAdmin) {
+    match.status = "active";
+  }
+
+  if (isAdmin && status) {
+    match.status = status;
+  }
   if (search) {
     match.$or = [
       { name: { $regex: search, $options: "i" } },
