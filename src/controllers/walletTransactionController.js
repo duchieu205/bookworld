@@ -47,6 +47,9 @@ import { log } from "console";
           status: "active",
       });
       }
+      if(wallet.status === "locked") {
+          throw createError(400, "Ví của bạn đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+      }
       const balance = await WalletTransaction.create({
           wallet: wallet._id,
           user: userId,
@@ -171,6 +174,9 @@ import { log } from "console";
   const wallet = await Wallet.findOne({ user: userId });
   if (!wallet)
     return res.status(404).json({ message: "Ví không tồn tại" });
+  if(wallet.status === "locked") {
+      throw createError(400, "Ví đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+  }
 
   if (wallet.balance < amount)
     return res.status(400).json({ message: "Số dư không đủ" });
@@ -212,7 +218,9 @@ import { log } from "console";
   const wallet = await Wallet.findById(transaction.wallet);
   if (!wallet)
     return res.status(404).json({ message: "Không tìm thấy ví" });
-
+  if(wallet.status === "locked") {
+    throw createError(400, "Ví đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+  }
   if (wallet.balance < transaction.amount)
     return res.status(400).json({ message: "Số dư không đủ để duyệt rút" });
 
@@ -338,6 +346,8 @@ export const getMyWalletTransactions = async (req, res) => {
     },
   });
 };
+
+
 
 export const rejectWithdrawTransaction = async (req,res) => {
   try {

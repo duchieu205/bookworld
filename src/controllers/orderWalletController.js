@@ -6,12 +6,15 @@ import createError from "../utils/createError.js";
 import Wallet from "../models/wallet.js";
 import WalletTransaction from "../models/walletTransaction.model.js";
 import { computeDiscountForItems } from "../utils/discountUtil.js";
-
+import {sendWalletEmail} from "../utils/sendEmail.js"
 
 export const createOrderWithWallet = async (req, res) => {
     const userId = req.user && req.user._id;
     if (!userId) throw createError(401, "Chưa đăng nhập");
     const wallet = await Wallet.findOne({ user: userId});
+    if(wallet.status === "locked") {
+        throw createError(400, "Ví của bạn đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+    }
     let {
         items: bodyItems,
         shipping_address = {},
@@ -122,8 +125,6 @@ export const createOrderWithWallet = async (req, res) => {
         amount: order.total,
         description: `Thanh toán đơn hàng ${order._id}`
       });
-    
-
     if (!updatedWallet) {
         throw createError(400, "Số dư không đủ");
     } 
@@ -200,4 +201,111 @@ export const getWalletUser = async(req, res ) => {
     });
 }
 
+export const getAllWallet = async (req, res) => {
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+
+  const skip = (page - 1) * limit;
+
+  const [data, total] = await Promise.all([
+    Wallet.find()
+      .populate("user", "name email status")
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 }),
+    Wallet.countDocuments(),
+  ]);
+
+  res.json({
+    success: true,
+    data,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  });
+};
+
+
+export const lockWallet = async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  if (!reason) {
+    return res.status(400).json({
+      success: false,
+      message: "Vui lòng nhập lý do khóa ví",
+    });
+  }
+
+  const wallet = await Wallet.findById(id).populate("user");
+
+  if (!wallet) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy ví",
+    });
+  }
+
+  if (wallet.status === "locked") {
+    return res.json({ success: true, message: "Ví đã bị khóa trước đó" });
+  }
+
+  wallet.status = "locked";
+  wallet.reasonLocked = reason;
+  wallet.lockedAt = new Date();
+  await wallet.save();
+
+  // 📧 Gửi mail
+  await sendWalletEmail({
+    to: wallet.user.email,
+    subject: "Ví của bạn đã bị khóa",
+    html: `
+      <h3>Ví của bạn đã bị khóa</h3>
+      <p><strong>Lý do:</strong> ${reason}</p>
+      <p>Nếu có thắc mắc vui lòng liên hệ để được hỗ trợ.</p>
+    `,
+  });
+
+  res.json({
+    success: true,
+    message: "Đã khóa ví",
+  });
+};
+
+export const unlockWallet = async (req, res) => {
+  const { id } = req.params;
+
+  const wallet = await Wallet.findById(id).populate("user");
+
+  if (!wallet) {
+    return res.status(404).json({
+      success: false,
+      message: "Không tìm thấy ví",
+    });
+  }
+
+  wallet.status = "active";
+  wallet.reasonLocked = null;
+  wallet.lockedAt = null;
+  await wallet.save();
+
+  await sendWalletEmail({
+    to: wallet.user.email,
+    subject: "Ví của bạn đã được mở khóa",
+    html: `
+      <h3>Ví của bạn đã được mở khóa</h3>
+      <p>Bạn có thể tiếp tục sử dụng ví bình thường.</p>
+      <p>Nếu có thắc mắc vui lòng liên hệ để được hỗ trợ.</p>
+
+    `,
+  });
+
+  res.json({
+    success: true,
+    message: "Đã mở khóa ví",
+  });
+};
 export default {createOrderWithWallet}

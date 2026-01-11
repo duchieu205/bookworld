@@ -20,6 +20,13 @@ const walletSchema = new mongoose.Schema(
       enum: ["active", "locked"],
       default: "active",
     },
+    reasonLocked: {
+      type: String,
+      default: null,
+    },
+    lockedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
