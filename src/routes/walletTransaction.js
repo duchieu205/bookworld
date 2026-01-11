@@ -5,7 +5,8 @@ import {
   withdrawFromWallet,
   approveWithdraw,
   getAllWalletTransactions,
-  getMyWalletTransactions
+  getMyWalletTransactions,
+  rejectWithdrawTransaction
 } from "../controllers/walletTransactionController.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
 
@@ -19,6 +20,7 @@ router.get("/my-transactions", authMiddleware.verifyToken, getMyWalletTransactio
 // ADMIN
 router.get("/getWalletTransaction", authMiddleware.requireAdmin, getAllWalletTransactions);
 router.put("/approveWithDrawal/:transactionId", authMiddleware.requireAdmin, approveWithdraw);
+router.put("/rejectWithdrawTransaction/:transactionId", authMiddleware.requireAdmin, rejectWithdrawTransaction);
 
 // VNPay callback
 router.get("/result", vnpayReturn);

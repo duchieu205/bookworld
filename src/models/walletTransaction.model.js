@@ -19,7 +19,6 @@ const walletTransactionSchema = new mongoose.Schema(
         enum: ["Nạp tiền", "Rút tiền", "Hoàn tiền", "Thanh toán"],
         required: true
     },
-
     amount: {
       type: Number,
       required: true,
@@ -30,7 +29,6 @@ const walletTransactionSchema = new mongoose.Schema(
       enum: ["Chờ xử lý", "Thành công", "Thất bại"],
       default: "Chờ xử lý",
     },
-
 
     expiredAt: {
       type: Date,
@@ -50,6 +48,10 @@ const walletTransactionSchema = new mongoose.Schema(
       type: Date,
     },
     description: String,
+    note: {
+      type: String,
+      default: ""
+    }
   },
   { timestamps: true }
 );

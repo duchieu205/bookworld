@@ -3,6 +3,8 @@ import crypto from "crypto";
 import createError from "../utils/createError.js";
 import WalletTransaction from "../models/walletTransaction.model.js";
 import Wallet from "../models/wallet.js";
+import {sendRejectWithDrawalEmail} from "../utils/sendEmail.js";
+import { log } from "console";
   export const verifyVnPayChecksum = (query, secretKey) => {
       const params = { ...query };
       const secureHash = params.vnp_SecureHash;
@@ -318,6 +320,7 @@ export const getMyWalletTransactions = async (req, res) => {
 
   const [data, total] = await Promise.all([
     WalletTransaction.find(filter)
+      .populate("withdrawalMethod")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit)),
@@ -336,6 +339,77 @@ export const getMyWalletTransactions = async (req, res) => {
   });
 };
 
+export const rejectWithdrawTransaction = async (req,res) => {
+  try {
+    const { transactionId } = req.params;
+    console.log(transactionId);
+    const { reason } = req.body;
+
+    if (!reason) {
+      return res.status(400).json({
+        success: false,
+        message: "Lý do từ chối là bắt buộc",
+      });
+    }
+
+    const transaction = await WalletTransaction.findById(transactionId).populate("user");
+
+    if (!transaction) {
+      return res.status(404).json({success: false,message: "Không tìm thấy giao dịch",});
+    }
+    if (transaction.type !== "Rút tiền") {
+      return res.status(400).json({
+        success: false,
+        message: "Giao dịch không phải rút tiền",
+      });
+    }
+
+    if (transaction.status !== "Chờ xử lý") {
+      return res.status(400).json({
+        success: false,
+        message: "Giao dịch đã được xử lý",
+      });
+    }
+
+    // ✅ Update trạng thái
+    transaction.status = "Thất bại";
+    transaction.note = `Admin từ chối. Lý do: ${reason}`;
+    transaction.updatedAt = new Date();
+
+    await transaction.save();
+
+    // ✅ Gửi mail cho user
+    if (transaction.user?.email) {
+      await sendRejectWithDrawalEmail({
+        to: transaction.user.email,
+        subject: "Yêu cầu rút tiền bị từ chối",
+        html: `
+          <h3>Yêu cầu rút tiền của bạn đã bị từ chối</h3>
+          <p><strong>Số tiền:</strong> ${transaction.amount.toLocaleString("vi-VN")} VND</p>
+          <p><strong>Lý do:</strong> ${reason}</p>
+          <p>Nếu bạn có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ.</p>
+          <br/>
+          <p style="margin-top: 30px;">
+            Trân trọng,<br/>
+            <strong>Đội ngũ quản trị</strong>
+          </p>
+        `,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Đã từ chối yêu cầu rút tiền",
+    });
+  } catch (error) {
+    console.error("rejectWithdrawTransaction error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server",
+    });
+  }
+};
+
 
 
 export default {
@@ -344,5 +418,6 @@ export default {
     withdrawFromWallet,
     approveWithdraw,
     getAllWalletTransactions,
-    getMyWalletTransactions
+    getMyWalletTransactions,
+    rejectWithdrawTransaction
 }
