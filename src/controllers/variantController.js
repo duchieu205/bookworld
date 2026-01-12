@@ -111,6 +111,16 @@ export const updateVariant = async (req, res) => {
     const p = await Product.findById(updates.product_id);
     if (!p) throw createError(404, "Product not found");
   }
+   if (updates.status === "active") {
+      const variant = await Variant.findById(id).populate("product_id");
+  
+      if (!variant.product_id || variant.product_id.status !== "active") {
+        throw createError(
+          400,
+          "Không thể kích hoạt biến thể khi sản phẩm đang bị vô hiệu hoá"
+        );
+      }
+  }
 
   const variant = await Variant.findByIdAndUpdate(id, updates, {
     new: true,

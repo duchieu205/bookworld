@@ -21,6 +21,8 @@ router.post("/", authMiddleware.requireAdmin, handleAsync(productController.crea
 
 // Get product by id
 router.get("/:id", handleAsync(productController.getProductById));
+router.get("/admin/:id", authMiddleware.requireAdmin, handleAsync(productController.getAdminProductById));
+
 
 // Reviews
 router.get("/:id/reviews", handleAsync(reviewController.getReviewsByProduct));

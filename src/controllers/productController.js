@@ -356,6 +356,42 @@ export const getProductById = async (req, res, next) => {
   }
 };
 
+export const getAdminProductById = async (req, res, next) => {
+  const { id } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ success: false, message: "Invalid product ID" });
+  }
+
+  try {
+    const product = await Product.findById(id).populate("category");
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+
+    const variants = await Variant.find({
+      product_id: id
+    });
+
+    const reviews = await Review.find({ product: id })
+      .populate("user", "name email")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        product,
+        variants,
+        category: product.category,
+        reviews
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Update product status
 export const updateProductStatus = async (req, res) => {
   console.log("PARAM ID:", req.params.id);
@@ -369,6 +405,22 @@ export const updateProductStatus = async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ success: false, message: "Invalid product ID" });
   }
+  if (status === "active") {
+    const product = await Product.findById(id).populate("category");
+
+    if (!product.category || product.category.status !== "active") {
+      throw createError(
+        400,
+        "Không thể kích hoạt sản phẩm khi danh mục đang bị vô hiệu hoá"
+      );
+    }
+  }
+  if (status === "inactive") {
+          await Variant.updateMany(
+              { product_id: id },
+              { status: "inactive" },
+          );
+    }
 
   const product = await Product.findByIdAndUpdate(id, {status}, {new: true});
   if (!product) throw createError(404, "Product not found");
@@ -450,6 +502,7 @@ export default {
   createProduct,
   getProducts,
   getProductById,
+  getAdminProductById,
   updateProduct,
   deleteProduct,
   searchProducts,

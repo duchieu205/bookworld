@@ -106,9 +106,6 @@
             throw createError(404, "Không tìm thấy danh mục");
         }
 
-        
-
-
         const products = await Product.find({ category: id })
             .populate({
             path: "variants",
@@ -137,6 +134,12 @@
     
       const category = await Category.findByIdAndUpdate(id, {status}, {new: true});
       if (!category) throw createError(404, "Product not found");
+      if (status === "inactive") {
+        await Product.updateMany(
+            { category: id },
+            { status: "inactive" },
+        );
+    }
       return res.success(category, "Product updated", 200);
     };
     
