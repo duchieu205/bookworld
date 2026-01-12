@@ -30,6 +30,7 @@ import { log } from "console";
   };
 
   export const createTopUpVnPay = async(req, res) => {
+  
       const userId = req.user && req.user._id;
       if (!userId) throw createError(401, "Chưa đăng nhập");
       const {amount} = req.body;
@@ -94,8 +95,6 @@ import { log } from "console";
                   paymentUrl,
               },
           });
-
-      
   }
 
     export const vnpayReturn = async (req, res) => {
@@ -165,6 +164,7 @@ import { log } from "console";
     
 
   export const withdrawFromWallet = async (req, res) => {
+
   const userId = req.user?._id;
   const { amount, withdrawalMethodId } = req.body;
 
@@ -200,43 +200,44 @@ import { log } from "console";
 
 
   export const approveWithdraw = async (req, res) => {
-  const { transactionId } = req.params;
-  const { image_transaction } = req.body;
-  const transaction = await WalletTransaction.findById(transactionId);
-   if (!image_transaction) {
-    return res.status(400).json({ message: "Thiếu ảnh giao dịch" });
-  }
-  if (!transaction)
-    return res.status(404).json({ message: "Không tìm thấy giao dịch" });
 
-  if (transaction.type !== "Rút tiền")
-    return res.status(400).json({ message: "Giao dịch không hợp lệ" });
+      const { transactionId } = req.params;
+      const { image_transaction } = req.body;
+      const transaction = await WalletTransaction.findById(transactionId);
+      if (!image_transaction) {
+        return res.status(400).json({ message: "Thiếu ảnh giao dịch" });
+      }
+      if (!transaction)
+        return res.status(404).json({ message: "Không tìm thấy giao dịch" });
 
-  if (transaction.status !== "Chờ xử lý")
-    return res.status(400).json({ message: "Giao dịch đã được xử lý" });
+      if (transaction.type !== "Rút tiền")
+        return res.status(400).json({ message: "Giao dịch không hợp lệ" });
 
-  const wallet = await Wallet.findById(transaction.wallet);
-  if (!wallet)
-    return res.status(404).json({ message: "Không tìm thấy ví" });
-  if(wallet.status === "locked") {
-    throw createError(400, "Ví đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
-  }
-  if (wallet.balance < transaction.amount)
-    return res.status(400).json({ message: "Số dư không đủ để duyệt rút" });
+      if (transaction.status !== "Chờ xử lý")
+        return res.status(400).json({ message: "Giao dịch đã được xử lý" });
 
-  wallet.balance -= transaction.amount;
-  await wallet.save();
+      const wallet = await Wallet.findById(transaction.wallet);
+      if (!wallet)
+        return res.status(404).json({ message: "Không tìm thấy ví" });
+      if(wallet.status === "locked") {
+        throw createError(400, "Ví đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+      }
+      if (wallet.balance < transaction.amount)
+        return res.status(400).json({ message: "Số dư không đủ để duyệt rút" });
 
-  transaction.status = "Thành công";
-  transaction.image_transaction = image_transaction;
-  transaction.approvedWithDrawalAt = new Date();
-  await transaction.save();
+      wallet.balance -= transaction.amount;
+      await wallet.save();
 
-  return res.json({
-    success: true,
-    message: "Duyệt rút tiền thành công",
-  });
-};
+      transaction.status = "Thành công";
+      transaction.image_transaction = image_transaction;
+      transaction.approvedWithDrawalAt = new Date();
+      await transaction.save();
+
+      return res.json({
+        success: true,
+        message: "Duyệt rút tiền thành công",
+      });
+    };
 
 
     export const getAllWalletTransactions = async (req, res) => {

@@ -525,7 +525,6 @@ export const refundOrderToWallet = async (req, res) => {
 };
 
 export const requestReturnOrder = async (req, res) => {
-  try {
     const userId = req.user?._id;
     const {reason, images} = req.body;
     if (!reason || !images) {
@@ -534,8 +533,12 @@ export const requestReturnOrder = async (req, res) => {
     if (!userId) throw createError(401, "Chưa đăng nhập");
     const { orderId } = req.params;
 
+    const wallet = await Wallet.findOne({ user: userId });
+    if(wallet.status === "locked") {
+          throw createError(400, "Ví đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+    }
     const order = await Order.findOne({ _id: orderId});
-
+    
     if (!order)
       return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
 
@@ -567,15 +570,9 @@ export const requestReturnOrder = async (req, res) => {
       message: "Gửi yêu cầu trả hàng / hoàn tiền thành công",
       order,
     });
-  } 
-  catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Lỗi server" });
-  }
-};
+  } ;
 
 export const approveReturnOrder = async (req, res) => {
-  try {
     const { orderId } = req.params;
     const order = await Order.findById(orderId);
     
@@ -641,14 +638,10 @@ export const approveReturnOrder = async (req, res) => {
       message: "Đã duyệt Trả hàng/Hoàn tiền",
       order,
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Lỗi server" });
-  }
-};
+  };
 
 export const rejectReturnOrder = async (req, res) => {
-   try {
+  
     const { orderId } = req.params;
     const adminId = req.user?._id;
     if (!adminId) throw createError(401, "Chưa đăng nhập");
@@ -684,13 +677,7 @@ export const rejectReturnOrder = async (req, res) => {
       } catch (err) {
         console.error("Send reject return mail failed:", err);
     }
-  }
-
-   catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Lỗi server" });
-  }
-} 
+  };
 
 export const rejectReturnOrderClient =  async (req, res) => {
   try {

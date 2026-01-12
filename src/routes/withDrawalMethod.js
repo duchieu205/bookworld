@@ -8,20 +8,21 @@ import {
   getAllWithdrawalMethods
 } from "../controllers/withDrawalMethodController.js";
 import { verifyToken, requireAdmin } from "../middlewares/authMiddleware.js";
+import handleAsync from "../utils/handleAsync.js";
 
 const router = express.Router();
 
 router.use(verifyToken);
 
-router.post("/", createWithdrawalMethod);
-router.get("/", getWithdrawalMethods);
+router.post("/", handleAsync(createWithdrawalMethod));
+router.get("/", handleAsync(getWithdrawalMethods));
 
 //admin
-router.get("/allWithDrawalMethod", requireAdmin, getAllWithdrawalMethods);
+router.get("/allWithDrawalMethod", requireAdmin, handleAsync(getAllWithdrawalMethods));
 
-router.get("/:id", getWithdrawalMethodById);
+router.get("/:id", handleAsync(getWithdrawalMethodById));
 
-router.put("/:id", updateWithdrawalMethod);
-router.delete("/:id", deleteWithdrawalMethod);
+router.put("/:id", handleAsync(updateWithdrawalMethod));
+router.delete("/:id", handleAsync(deleteWithdrawalMethod));
 
 export default router;

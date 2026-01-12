@@ -76,17 +76,17 @@ router.post("/:id/refund", authMiddleware.verifyToken, handleAsync(refundOrderTo
 
 
 
-router.put("/return-request/:orderId",authMiddleware.verifyToken,requestReturnOrder);
+router.put("/return-request/:orderId",authMiddleware.verifyToken, handleAsync(requestReturnOrder));
 
 
-router.put("/approveReturnOrder/:orderId",authMiddleware.requireAdmin,approveReturnOrder);
+router.put("/approveReturnOrder/:orderId",authMiddleware.requireAdmin, handleAsync(approveReturnOrder));
 
-router.put("/rejectReturnOrder/:orderId", authMiddleware.requireAdmin, rejectReturnOrder);
-router.put("/rejectReturnOrderCient/:orderId",authMiddleware.verifyToken,rejectReturnOrderClient);
+router.put("/rejectReturnOrder/:orderId", authMiddleware.requireAdmin, handleAsync(rejectReturnOrder));
+router.put("/rejectReturnOrderCient/:orderId",authMiddleware.verifyToken, handleAsync(rejectReturnOrderClient));
 
 
 // VNPay specific routes
 router.post("/vnpay/create", authMiddleware.verifyToken, handleAsync(createOrderWithVnPay));
-router.get("/vnpay-return", vnpayReturn);
+router.get("/vnpay-return", handleAsync(vnpayReturn));
 
 export default router;
