@@ -9,7 +9,7 @@
 			},
 			type: {
 				type: String,
-				enum: ["Bìa cứng", "Bìa mềm"],
+			
 				required: true,
 			},
 			price: {

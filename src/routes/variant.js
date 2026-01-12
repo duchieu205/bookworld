@@ -7,12 +7,15 @@ const router = Router();
 
 // List variants (optionally filter by product)
 router.get("/", handleAsync(variantController.getVariants));
-
+router.get("/admin/variants", authMiddleware.requireAdmin, (req, res, next) => {
+  req.isAdminRequest = true;
+  next();
+}, handleAsync(variantController.getVariants));
 // Create variant
 router.post("/", authMiddleware.requireAdmin, handleAsync(variantController.createVariant));
 
 // Temporary: accept PUT /api/variants with id/_id in body
-router.put("/", authMiddleware.requireAdmin, handleAsync(variantController.updateVariantByBody));
+// router.put("/", authMiddleware.requireAdmin, handleAsync(variantController.updateVariantByBody));
 
 // Get variant by id
 router.get("/:id", handleAsync(variantController.getVariantById));

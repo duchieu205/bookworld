@@ -324,13 +324,18 @@ export const getProductById = async (req, res, next) => {
 
   try {
     // Lấy product và populate category
-    const product = await Product.findById(id).populate("category"); 
+    const product = await Product.findOne({_id: id,status: "active"}).populate("category");
 
     if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
     // Lấy variants của sản phẩm
-    const variant = await Variant.find({ product_id: id });
-
+    const variant = await Variant.find({ product_id: id, status: "active" });
+    // if (variant.length === 0) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "Product is currently unavailable"
+    //   });
+    // }
     // Lấy review đã được admin duyệt
     const reviews = await Review.find({ product: id, status: "approved" })
       .populate("user", "name email")

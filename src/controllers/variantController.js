@@ -3,7 +3,6 @@ import Variant from "../models/variant.js";
 import Product from "../models/Product.js";
 import createError from "../utils/createError.js";
 
-const ALLOWED_TYPES = ["Bìa cứng", "Bìa mềm"];
 
 // Create a new variant
 export const createVariant = async (req, res, next) => {
@@ -18,13 +17,6 @@ export const createVariant = async (req, res, next) => {
     const product = await Product.findById(body.product_id);
     if (!product) throw createError(404, "Product not found");
 
-    // Validate type
-    if (!body.type || !ALLOWED_TYPES.includes(body.type)) {
-      throw createError(
-        400,
-        `type is required and must be one of: ${ALLOWED_TYPES.join(", ")}`
-      );
-    }
 
     // Tạo variant
     const variant = await Variant.create({
@@ -52,13 +44,22 @@ export const createVariant = async (req, res, next) => {
 
 // Get list of variants
 export const getVariants = async (req, res) => {
-  const { product_id, page = 1, limit } = req.query;
+  const { product_id, page = 1, limit, status } = req.query;
   const query = {};
 
   if (product_id) {
     if (!mongoose.Types.ObjectId.isValid(product_id))
       throw createError(400, "Invalid product_id");
     query.product_id = product_id;
+  }
+  const isAdmin = req.isAdminRequest === true;
+
+
+  if (!isAdmin) {
+    query.status = "active";
+  }
+  if (isAdmin && status) {
+    query.status = status;
   }
 
   const pageNum = Math.max(1, parseInt(page, 10));
@@ -111,13 +112,6 @@ export const updateVariant = async (req, res) => {
     if (!p) throw createError(404, "Product not found");
   }
 
-  if (updates.type && !ALLOWED_TYPES.includes(updates.type)) {
-    throw createError(
-      400,
-      `type must be one of: ${ALLOWED_TYPES.join(", ")}`
-    );
-  }
-
   const variant = await Variant.findByIdAndUpdate(id, updates, {
     new: true,
     runValidators: true,
@@ -167,13 +161,6 @@ export const updateVariantByBody = async (req, res) => {
 
     const p = await Product.findById(updates.product_id);
     if (!p) throw createError(404, "Product not found");
-  }
-
-  if (updates.type && !ALLOWED_TYPES.includes(updates.type)) {
-    throw createError(
-      400,
-      `type must be one of: ${ALLOWED_TYPES.join(", ")}`
-    );
   }
 
   const variant = await Variant.findByIdAndUpdate(id, updates, {
