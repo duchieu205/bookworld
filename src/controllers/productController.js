@@ -397,9 +397,17 @@ export const deleteProduct = async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return res.status(400).json({ success: false, message: "Invalid product ID" });
   }
+  const variantExists = await Variant.exists({ product_id: id });
+
+  if (variantExists) {
+      throw createError(400,"Không thể xóa sản phẩm vì vẫn còn biến thể thuộc sản phẩm này");
+  }
 
   const product = await Product.findByIdAndDelete(id);
   if (!product) throw createError(404, "Product not found");
+
+
+  
   return res.success(product, "Product deleted", 200);
 };
 
