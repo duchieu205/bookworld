@@ -17,30 +17,30 @@ export const createVariant = async (req, res, next) => {
     const product = await Product.findById(body.product_id);
     if (!product) throw createError(404, "Product not found");
 
+  
+    const sku = body.sku || `SKU-${Date.now()}`;
 
     // Tạo variant
     const variant = await Variant.create({
       product_id: body.product_id,
       type: body.type,
       price: body.price ?? 0,
-      sku: body.sku || undefined, 
+      sku: sku,
       quantity: body.quantity ?? 0,
       status: body.status ?? "active",
     });
 
-    // Trả về chuẩn
     return res.status(201).json({
       success: true,
       message: "Variant created",
       data: variant,
     });
   } catch (err) {
-    console.error(" createVariant error:", err);
+    console.error("createVariant error:", err);
     if (err.status) return res.status(err.status).json({ message: err.message });
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 // Get list of variants
 export const getVariants = async (req, res) => {
