@@ -8,6 +8,7 @@ export const startWalletTransactionExpireCron = () => {
 
       const expiredWalletTransactions = await WalletTransaction.find({
         "status": "Chờ xử lý",
+        "type": "Nạp tiền",
         expiredAt: { $lt: now }
       });
 

@@ -1,6 +1,7 @@
     import Category from "../models/Category.js";
     import createError from "../utils/createError.js";
     import Product from "../models/Product.js";
+    import Variant from "../models/variant.js"
     import mongoose from "mongoose";
     
     // Hàm tạo slug (bỏ dấu tiếng Việt)
@@ -133,14 +134,25 @@
       }
     
       const category = await Category.findByIdAndUpdate(id, {status}, {new: true});
-      if (!category) throw createError(404, "Product not found");
+      if (!category) throw createError(404, "Category not found");
       if (status === "inactive") {
         await Product.updateMany(
             { category: id },
             { status: "inactive" },
         );
+        const products = await Product.find(
+            { category: id },
+            { _id: 1 }
+        );
+
+        const productIds = products.map(p => p._id);
+
+        await Variant.updateMany(
+            { product_id: { $in: productIds } },
+            { status: "inactive" }
+        );
     }
-      return res.success(category, "Product updated", 200);
+      return res.success(category, "Category updated", 200);
     };
     
 

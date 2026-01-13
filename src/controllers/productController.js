@@ -420,7 +420,7 @@ export const updateProductStatus = async (req, res) => {
               { product_id: id },
               { status: "inactive" },
           );
-    }
+  }
 
   const product = await Product.findByIdAndUpdate(id, {status}, {new: true});
   if (!product) throw createError(404, "Product not found");

@@ -95,6 +95,10 @@ const orderSchema = new Schema(
 
     shipping_address: { type: Object, default: {} },
     images_return: [],
+    image_completed: {
+    type: String,
+    default: null,
+  },
     note: { type: String, default: "" },
     delivered_at: Date,
     refunded_at: Date

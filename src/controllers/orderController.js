@@ -283,12 +283,17 @@ export const updateOrderStatus = async (req, res) => {
   try {
     if (req.user?.role !== "admin") throw createError(403, "Chỉ admin mới cập nhật trạng thái");
 
-    const { status, note } = req.body;
+    const { status, note, image_completed } = req.body;
     if (!status) throw createError(400, "Thiếu trạng thái");
 
     const order = await Order.findById(req.params.id);
     if (!order) throw createError(404, "Đơn hàng không tồn tại");
-
+     if (order.status === "Đang giao hàng" && status === "Giao hàng thành công" &&!image_completed) {
+        throw createError(400, "Thiếu ảnh xác nhận giao hàng");
+    }
+    if( order.payment.method === "vnpay" && order.payment.status === "Chưa thanh toán") {
+      throw createError(403, "Không thể thay đổi trạng thái do khách hàng chưa thanh toán đơn hàng");
+    }
     const prevPaymentStatus = order.payment.status;
     const oldStatus = order.status;
 
@@ -319,13 +324,11 @@ export const updateOrderStatus = async (req, res) => {
     const allowed = validTransitions[oldStatus] || [];
     if (!allowed.includes(status)) throw createError(400, `Không thể chuyển từ "${oldStatus}" sang "${status}"`);
     // VNPay: phải thanh toán trước khi giao
-    if (
-      status === "Đang giao hàng" &&
-      order.payment.method === "vnpay" &&
-      order.payment.status !== "Đã thanh toán"
-    ) {
-      throw createError(400, "Đơn hàng chưa thanh toán");
-    }
+    // if (status === "Đang giao hàng" &&order.payment.method === "vnpay" &&
+    //   order.payment.status !== "Đã thanh toán"
+    // ) {
+    //   throw createError(400, "Đơn hàng chưa thanh toán");
+    // }
 
     order.status = status;
     order.status_logs = order.status_logs || [];
@@ -351,6 +354,9 @@ export const updateOrderStatus = async (req, res) => {
     if (order.status === "Giao hàng thành công") {
       order.payment.status = "Đã thanh toán";
     }
+     if (image_completed) {
+    order.image_completed = image_completed;
+    }
     await order.save();
     return res.json({ success: true, message: "Cập nhật trạng thái thành công", data: order });
   } catch (err) {
@@ -369,7 +375,7 @@ export const cancelOrder = async (req, res) => {
   .populate("user_id", "email name");
   const { note } = req.body;
   if (!order) throw createError(404, "Đơn hàng không tồn tại");
-
+  
   const prevPaymentStatus = order.payment.status;
 
   const isOwner = String(order.user_id._id) === String(req.user?._id);
@@ -583,6 +589,10 @@ export const approveReturnOrder = async (req, res) => {
 
     if (!order)
       return res.status(404).json({ message: "Không tìm thấy đơn hàng" });
+    const wallet = await Wallet.findOne({ user: order.user_id });
+    if(wallet.status === "locked") {
+          throw createError(400, "Ví đang bị khóa. Vui lòng liên hệ hỗ trợ để biết thêm thông tin chi tiết");
+    }
     if (order.status === "Trả hàng/Hoàn tiền thành công") {
       return res.status(400).json({ message: "Đơn hàng đã được hoàn tiền" });
     }
@@ -602,7 +612,7 @@ export const approveReturnOrder = async (req, res) => {
         });
       }
     }
-    const wallet = await Wallet.findOne({user: order.user_id});
+    // const wallet = await Wallet.findOne({user: order.user_id});
 
     await WalletTransaction.create({
             wallet: wallet._id,

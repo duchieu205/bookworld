@@ -71,7 +71,7 @@ export const getVariants = async (req, res) => {
     .limit(lim)
     .sort({ createdAt: -1 })
     .populate("product_id", "name slug images");
-
+    
   return res.success(
     { items, total, page: pageNum, limit: lim },
     "Variants retrieved",
