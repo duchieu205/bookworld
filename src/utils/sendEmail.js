@@ -421,3 +421,125 @@ export const buildOrderCreatedEmail = ({
     </div>
   `;
 };
+
+export const buildOrderDeliveredEmail = ({
+  userName,
+  orderId,
+  deliveredAt,
+  totalAmount,
+}) => {
+  const formatVND = (n) =>
+    Number(n).toLocaleString("vi-VN") + "₫";
+
+  const dateStr = deliveredAt
+    ? new Date(deliveredAt).toLocaleString("vi-VN")
+    : new Date().toLocaleString("vi-VN");
+  const shortOrderId = orderId.toString().slice(-8).toUpperCase();
+
+  return `
+  <!DOCTYPE html>
+  <html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Giao hàng thành công</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f6f8; font-family: Arial, Helvetica, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center" style="padding: 30px 10px;">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; overflow:hidden;">
+            
+            <!-- HEADER -->
+            <tr>
+              <td style="background:#22c55e; padding:20px; text-align:center;">
+                <h1 style="margin:0; color:#ffffff;">📦 Giao hàng thành công</h1>
+              </td>
+            </tr>
+
+            <!-- BODY -->
+            <tr>
+              <td style="padding:30px; color:#333;">
+                <p style="font-size:16px;">Xin chào <strong>${userName}</strong>,</p>
+
+                <p style="font-size:15px; line-height:1.6;">
+                  Đơn hàng <strong>#${shortOrderId}</strong> của bạn đã được
+                  <strong style="color:#22c55e;">giao thành công</strong>.
+                </p>
+
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+                  <tr>
+                    <td style="padding:10px 0; border-bottom:1px solid #eee;">
+                      <strong>Mã đơn hàng:</strong>
+                    </td>
+                    <td style="padding:10px 0; border-bottom:1px solid #eee;" align="right">
+                      #${shortOrderId}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0; border-bottom:1px solid #eee;">
+                      <strong>Thời gian giao:</strong>
+                    </td>
+                    <td style="padding:10px 0; border-bottom:1px solid #eee;" align="right">
+                      ${dateStr}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;">
+                      <strong>Tổng thanh toán:</strong>
+                    </td>
+                    <td style="padding:10px 0;" align="right">
+                      <strong style="color:#16a34a;">
+                        ${formatVND(totalAmount)}
+                      </strong>
+                    </td>
+                  </tr>
+                </table>
+                
+                <p style="font-size:15px; line-height:1.6;">
+                  Cảm ơn bạn đã mua sắm tại <strong>BookWorld</strong>.
+                  Nếu bạn yêu thích sản phẩm. Hãy đánh giá chúng nhé
+                  Chúng tôi hy vọng bạn sẽ hài lòng với sản phẩm đã nhận.
+                </p>
+                <p style="margin-top: 12px; padding: 10px; background-color: #fff7ed; color: #9a3412; border-left: 4px solid #fb923c; font-size: 14px;">
+                  ⏰ <strong>Lưu ý:</strong> 
+                </p>
+
+                 <p>
+                  Quý khách chỉ có thể gửi <strong>yêu cầu Trả hàng / Hoàn tiền</strong> trong vòng
+                  <strong>03 ngày</strong> kể từ thời điểm đơn hàng được xác nhận
+                  <strong>Giao hàng thành công</strong>.
+                </p>
+
+                <p>
+                  Sau thời gian này, hệ thống sẽ tự động chuyển đơn hàng sang trạng thái
+                  <strong>Hoàn tất</strong> và không hỗ trợ xử lý yêu cầu trả hàng.
+                </p>
+
+
+                <p style="font-size:14px; color:#555;">
+                  Nếu có bất kỳ vấn đề nào, vui lòng liên hệ bộ phận hỗ trợ của chúng tôi.
+                </p>
+
+                <p style="margin-top:30px;">
+                  Trân trọng,<br/>
+                  <strong>BookWorld Team</strong>
+                </p>
+              </td>
+            </tr>
+
+            <!-- FOOTER -->
+            <tr>
+              <td style="background:#f9fafb; padding:15px; text-align:center; font-size:12px; color:#888;">
+                © ${new Date().getFullYear()} BookWorld. Mọi quyền được bảo lưu.
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+  </html>
+  `;
+};

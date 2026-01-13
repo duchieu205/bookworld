@@ -5,25 +5,25 @@ export const startWalletTransactionExpireCron = () => {
   cron.schedule("*/5 * * * *", async () => {
     try {
       const now = new Date();
+     const result = await WalletTransaction.updateMany(
+        {
+          status: "Chờ xử lý",
+          type: "Nạp tiền",
+          expiredAt: { $lt: now },
+        },
+        {
+          $set: {
+            status: "Thất bại",
+            updatedAt: new Date(),
+          },
+        }
+      );
 
-      const expiredWalletTransactions = await WalletTransaction.find({
-        "status": "Chờ xử lý",
-        "type": "Nạp tiền",
-        expiredAt: { $lt: now }
-      });
-
-      for (const walletTransaction of expiredWalletTransactions) {
-        walletTransaction.status = "Thất bại";
-
-        await walletTransaction.save();
-      }
-
-      if (expiredWalletTransactions.length) {
+      if (result.modifiedCount > 0) {
         console.log(
-          `[CRON] Đã cập nhật ${expiredWalletTransactions.length} lệnh nạp tiền quá hạn thanh toán`
+          `[CRON] Đã huỷ ${result.modifiedCount} lệnh nạp tiền quá hạn`
         );
       }
-      console.log(`Cron hủy lệnh nạp tiền quá hạn chạy lúc:`, new Date().toLocaleString());
 
     } catch (err) {
       console.error("[CRON] Lỗi xử lý lệnh nạp tiền quá hạn:", err);

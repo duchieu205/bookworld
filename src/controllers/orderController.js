@@ -7,7 +7,13 @@ import createError from "../utils/createError.js";
 import mongoose from "mongoose";
 import WalletTransaction from "../models/walletTransaction.model.js";
 import Wallet from "../models/wallet.js";
-import {sendCancelOrderMail, sendRejectReturnMail, buildDeliveryFailedMail, sendEmail, buildOrderCreatedEmail} from "../utils/sendEmail.js";
+import {
+  sendCancelOrderMail, 
+  sendRejectReturnMail, 
+  buildDeliveryFailedMail, 
+  sendEmail, 
+  buildOrderCreatedEmail, 
+  buildOrderDeliveredEmail} from "../utils/sendEmail.js";
 
 /* =========================
    CREATE ORDER
@@ -147,6 +153,7 @@ export const createOrder = async (req, res) => {
       });
     }
   }
+  try {
   const user = await User.findOne({_id: userId})
   await sendEmail({
   to: user.email,
@@ -154,10 +161,14 @@ export const createOrder = async (req, res) => {
   html: buildOrderCreatedEmail({
     userName: user.name,
     orderId: order._id,
-    totalAmount: Number(`${order.total}Đ`),
+    totalAmount: `${order.total.toLocaleString("vi-VN")}₫`,
     paymentMethod: order.payment.method, 
   }),
 });
+  }
+catch (err) {
+        console.error("Send create order COD mail failed:", err);
+    }
 
   // NOTE: We no longer increment `usedCount` at order creation to avoid consuming codes for unpaid/pending orders.
   // `usedCount` is incremented atomically when payment is confirmed (wallet/vnpay) or when admin marks order as paid/delivered.
@@ -383,7 +394,24 @@ export const updateOrderStatus = async (req, res) => {
     if (order.status === "Giao hàng thành công") {
       order.payment.status = "Đã thanh toán";
       order.delivered_at = new Date();
-        }
+      try {
+        const user = await User.findOne({_id: order.user_id})
+        
+        await sendEmail({
+          to: user.email,
+          subject: "📦 Đơn hàng của bạn đã được giao thành công",
+          html: buildOrderDeliveredEmail({
+            userName: user.name,
+            orderId: order._id,
+            deliveredAt: order.deliveredAt, 
+            totalAmount: order.total,
+          }),
+        });
+      }
+      catch (err) {
+        console.error("Send create order VnPay mail failed:", err);
+      }
+    }
      if (image_completed) {
     order.image_completed = image_completed;
     }
@@ -697,13 +725,12 @@ export const rejectReturnOrder = async (req, res) => {
       updatedBy: adminId,
       updatedAt: new Date(),
     });
-    order.status = "Giao hàng thành công";
+    order.status = "Hoàn tất";
     
      order.status_logs.push({
-      status: "Giao hàng thành công",
-      note: `Chuyển trạng thái từ "${order.status} do đã từ chối yêu cầu`,
+      status: "Hoàn tất",
+      note: `Trạng thái tự động chuyển về hoàn tất do đã từ chối yêu cầu`,
       updatedBy: adminId,
-      updatedAt: new Date(),
     });
     order.images_return = null;
     await order.save();

@@ -16,7 +16,14 @@ export const createVariant = async (req, res, next) => {
 
     const product = await Product.findById(body.product_id);
     if (!product) throw createError(404, "Product not found");
+    const exists = await Variant.findOne({
+        product_id: body.product_id,
+        type: body.type,
+      });
 
+      if (exists) {
+        throw createError(409, "Biến thể này đã tồn tại cho sản phẩm");
+      }
   
     const sku = body.sku || `SKU-${Date.now()}`;
 
@@ -35,10 +42,15 @@ export const createVariant = async (req, res, next) => {
       message: "Variant created",
       data: variant,
     });
-  } catch (err) {
-    console.error("createVariant error:", err);
-    if (err.status) return res.status(err.status).json({ message: err.message });
-    return res.status(500).json({ message: "Internal Server Error" });
+  } catch (error) {
+      if (error.code === 11000) {
+          throw createError(409, "Biến thể đã tồn tại");
+        }
+    throw error;
+    
+    // console.error("createVariant error:", error);
+    // if (error.status) return res.status(error.status).json({ message: error.message });
+    // return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 

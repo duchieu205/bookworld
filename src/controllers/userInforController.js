@@ -2,7 +2,7 @@ import User from "../models/User.js";
 import createError from "../utils/createError.js";
 import Favourite from "../models/favourite.js";
 import Info from "../models/info.js";
-
+import Wallet from "../models/wallet.js"
 export const getInfo = async (req, res) => {
     try {
         const userId = req.user && (req.user._id || req.user.userId);
@@ -12,14 +12,16 @@ export const getInfo = async (req, res) => {
         const info = await Info.findOne({ user_id: userId });
 
         // Lấy tên từ bảng User
-        const user = await User.findById(userId).select("name email");
-
+        const user = await User.findById(userId).select("name email createdAt");
+        const wallet = await Wallet.findOne({ user: userId }).select("status");
         return res.status(200).json({
             success: true,
             message: "Lấy thông tin cá nhân thành công",
             data: {
                 name: user.name,
                 email: user.email,
+                createAt: user.createdAt,
+                status: wallet.status,
                 ...info?._doc      
             }
         });

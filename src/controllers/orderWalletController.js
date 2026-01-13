@@ -183,18 +183,22 @@ export const createOrderWithWallet = async (req, res) => {
                 );
             }
         }
-        const user = User.findOne({_id: userId})
-            await sendEmail({
-            to: user.email,
-            subject: "📦 Xác nhận tạo đơn hàng tại BookWorld",
-            html: buildOrderCreatedEmail({
-              userName: user.name,
-              orderId: order._id,
-              totalAmount: Number`${order.total}Đ`,
-              paymentMethod: order.payment.method, 
-            }),
+        try {
+         const user = await User.findOne({_id: userId})
+          await sendEmail({
+          to: user.email,
+          subject: "📦 Xác nhận tạo đơn hàng tại BookWorld",
+          html: buildOrderCreatedEmail({
+            userName: user.name,
+            orderId: order._id,
+            totalAmount: `${order.total.toLocaleString("vi-VN")}₫`,
+            paymentMethod: order.payment.method, 
+          }),
         });
-        
+    }
+        catch (err) {
+        console.error("Send create order Wallet mail failed:", err);
+    }
         return res.status(201).json({
             success: true,
             message: "Đơn hàng đã tạo",

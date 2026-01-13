@@ -6,54 +6,114 @@ import Category from "../models/Category.js";
 import Review from "../models/Review.js";
 
 export const createProduct = async (req, res) => {
-  const body = req.body;
-
-  console.log("Create product body:", body);
-
-  if (!body.slug && body.name) {
-    let slug = body.name
-      .toLowerCase()
-      .replace(/[^\w]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    const existing = await Product.findOne({ slug });
-    if (existing) {
-      slug += '-' + Date.now();
-    }
-    body.slug = slug;
-  }
-
-  if (body.category && !mongoose.Types.ObjectId.isValid(body.category)) {
-    return res.status(400).json({ success: false, message: "Invalid category ID" });
-  }
-
-  body.quantity = Number(body.quantity || 0);
-  body.status = body.status ?? true;
-  body.price = Number(body.price || 0);
-  body.weight = Number(body.weight || 0);
-  body.namxuatban = Number(body.namxuatban || 0);
-  body.sotrang = Number(body.sotrang || 0);
-  body.images = body.images || [];
-
   try {
+    const body = req.body;
+   
+    /* ======================
+       1. REQUIRED FIELDS
+    ====================== */
+    if (!body.name || typeof body.name !== "string") {
+      return res.status(400).json({ message: "Tên sản phẩm không hợp lệ" });
+    }
+
+    if (!body.category || !mongoose.Types.ObjectId.isValid(body.category)) {
+      return res.status(400).json({ message: "Category không hợp lệ" });
+    }
+
+    /* ======================
+       2. OPTIONAL STRING FIELDS
+    ====================== */
+    if (body.author && typeof body.author !== "string") {
+      return res.status(400).json({ message: "Author không hợp lệ" });
+    }
+
+    if (body.nhaxuatban && typeof body.nhaxuatban !== "string") {
+      return res.status(400).json({ message: "Nhà xuất bản không hợp lệ" });
+    }
+
+    if (body.description && typeof body.description !== "string") {
+      return res.status(400).json({ message: "Description không hợp lệ" });
+    }
+
+    if (body.size && typeof body.size !== "string") {
+      return res.status(400).json({ message: "Size không hợp lệ" });
+    }
+
+    /* ======================
+       3. NUMBER FIELDS
+    ====================== */
+    body.weight = Number(body.weight || 0);
+    body.namxuatban = Number(body.namxuatban || 0);
+    body.sotrang = Number(body.sotrang || 0);
+
+    if (body.weight < 0) {
+      return res.status(400).json({ message: "Weight không hợp lệ" });
+    }
+
+    if (body.namxuatban && body.namxuatban < 0) {
+      return res.status(400).json({ message: "Năm xuất bản không hợp lệ" });
+    }
+
+    if (body.sotrang && body.sotrang < 0) {
+      return res.status(400).json({ message: "Số trang không hợp lệ" });
+    }
+
+    /* ======================
+       4. IMAGES
+    ====================== */
+
+    /* ======================
+       5. STATUS
+    ====================== */
+    if (body.status && !["active", "inactive"].includes(body.status)) {
+      return res.status(400).json({ message: "Status không hợp lệ" });
+    }
+
+    body.status = body.status || "active";
+
+    /* ======================
+       6. SKU (OPTIONAL)
+    ====================== */
+    if (body.sku && typeof body.sku !== "string") {
+      return res.status(400).json({ message: "SKU không hợp lệ" });
+    }
+
+    /* ======================
+       7. SLUG AUTO GENERATE
+    ====================== */
+    if (!body.slug) {
+      let slug = body.name
+        .toLowerCase()
+        .replace(/[^\w]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      const exist = await Product.findOne({ slug });
+      if (exist) slug += "-" + Date.now();
+
+      body.slug = slug;
+    }
+
+    /* ======================
+       8. CREATE PRODUCT
+    ====================== */
     const product = await Product.create(body);
+
     return res.status(201).json({
       success: true,
-      message: "Product created",
-      data: product
+      message: "Tạo sản phẩm thành công",
+      data: product,
     });
-  } catch (err) {
-    if (err && err.code === 11000) {
-      return res.status(409).json({ success: false, message: "Duplicate product slug" });
+
+  } catch (error) {
+    console.error("createProduct error:", error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({ message: "Sản phẩm đã tồn tại" });
     }
-    console.error(err);
-    if (err.name === "CastError" || err.name === "ValidationError") {
-      return res.status(400).json({ success: false, message: err.message });
-    }
-    return res.status(500).json({ success: false, message: "Server error" });
+
+    return res.status(500).json({ message: "Server error" });
   }
 };
-
 // Get list of products with simple pagination and filtering
 export const getProducts = async (req, res) => {
   const { page = 1, limit, search, category, status, sort, minPrice, maxPrice, minRating, author } = req.query;
