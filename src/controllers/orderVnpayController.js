@@ -4,11 +4,14 @@ import Product from "../models/Product.js";
 import Variant from "../models/variant.js";
 import Cart from "../models/Cart.js";
 import Discount from "../models/Discount.js";
+import User from "../models/User.js";
+
 import createError from "../utils/createError.js";
 import { computeDiscountForItems } from "../utils/discountUtil.js";
 import { VNPay, ignoreLogger, ProductCode, VnpLocale, dateFormat } from "vnpay";
 import crypto from "crypto";
 import qs from "qs";
+import { sendEmail, buildOrderCreatedEmail} from "../utils/sendEmail.js";
 
 
 export const verifyVnPayChecksum = (query, secretKey) => {
@@ -171,7 +174,7 @@ export const createOrderWithVnPay = async (req, res) => {
 
 	// ===== 4. TẠO LINK THANH TOÁN VNPay =====
 	const expire = new Date();
-    expire.setMinutes(expire.getMinutes() + 15);
+    expire.setMinutes(expire.getMinutes() + 5);
 	
 	const paymentUrl = await vnpay.buildPaymentUrl({
 		vnp_Amount: order.total,
@@ -244,6 +247,17 @@ export const createOrderWithVnPay = async (req, res) => {
     }
   order.payment.payment_url = paymentUrl;
   await order.save();
+   const user = User.findOne({_id: userId})
+    await sendEmail({
+    to: user.email,
+    subject: "📦 Xác nhận tạo đơn hàng tại BookWorld",
+    html: buildOrderCreatedEmail({
+      userName: user.name,
+      orderId: order._id,
+      totalAmount: Number`${order.total}Đ`,
+      paymentMethod: order.payment.method, 
+    }),
+  });
   console.log("VNPay paymentUrl:", paymentUrl);
 	return res.status(201).json({
 		success: true,

@@ -7,7 +7,7 @@ import createError from "../utils/createError.js";
 import mongoose from "mongoose";
 import WalletTransaction from "../models/walletTransaction.model.js";
 import Wallet from "../models/wallet.js";
-import {sendCancelOrderMail, sendRejectReturnMail} from "../utils/sendEmail.js";
+import {sendCancelOrderMail, sendRejectReturnMail, buildDeliveryFailedMail, sendEmail, buildOrderCreatedEmail} from "../utils/sendEmail.js";
 
 /* =========================
    CREATE ORDER
@@ -147,6 +147,17 @@ export const createOrder = async (req, res) => {
       });
     }
   }
+  const user = await User.findOne({_id: userId})
+  await sendEmail({
+  to: user.email,
+  subject: "📦 Xác nhận tạo đơn hàng tại BookWorld",
+  html: buildOrderCreatedEmail({
+    userName: user.name,
+    orderId: order._id,
+    totalAmount: Number(`${order.total}Đ`),
+    paymentMethod: order.payment.method, 
+  }),
+});
 
   // NOTE: We no longer increment `usedCount` at order creation to avoid consuming codes for unpaid/pending orders.
   // `usedCount` is incremented atomically when payment is confirmed (wallet/vnpay) or when admin marks order as paid/delivered.
@@ -329,11 +340,29 @@ export const updateOrderStatus = async (req, res) => {
     // ) {
     //   throw createError(400, "Đơn hàng chưa thanh toán");
     // }
-
     order.status = status;
     order.status_logs = order.status_logs || [];
     order.status_logs.push({ status, note: note || `Chuyển trạng thái từ "${oldStatus}"`, updatedBy: req.user._id, updatedAt: new Date() });
+    if (status === "Giao hàng không thành công") {
+      const failCount = order.status_logs.filter(
+        (log) => log.status === "Giao hàng không thành công"
+      ).length;
 
+      if (failCount === 2) {
+        // populate user nếu chưa có
+        if (!order.user_id?.email) {
+          await order.populate("user_id", "email name");
+        }
+
+        const email = order.user_id?.email;
+        if (email) {
+          await buildDeliveryFailedMail({
+            to: email,
+            order_id: order._id,
+            userName:order.user_id?.name});
+        }
+      }
+    }
     const justBecamePaid = prevPaymentStatus !== 'Đã thanh toán' && order.payment.status === 'Đã thanh toán';
     if (justBecamePaid && order.discount && order.discount.code) {
       const discount = await Discount.findOne({ code: order.discount.code });
@@ -353,7 +382,8 @@ export const updateOrderStatus = async (req, res) => {
     }
     if (order.status === "Giao hàng thành công") {
       order.payment.status = "Đã thanh toán";
-    }
+      order.delivered_at = new Date();
+        }
      if (image_completed) {
     order.image_completed = image_completed;
     }

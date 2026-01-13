@@ -70,7 +70,7 @@ import { log } from "console";
       
           // ===== 4. TẠO LINK THANH TOÁN VNPay =====
           const expire = new Date();
-          expire.setMinutes(expire.getMinutes() + 15);
+          expire.setMinutes(expire.getMinutes() + 5);
           
           const paymentUrl = await vnpay.buildPaymentUrl({
               vnp_Amount: amount,
@@ -388,7 +388,7 @@ export const rejectWithdrawTransaction = async (req,res) => {
     transaction.updatedAt = new Date();
 
     await transaction.save();
-
+    const transactionIdShort = transaction._id.toString().slice(-8);
     // ✅ Gửi mail cho user
     if (transaction.user?.email) {
       await sendRejectWithDrawalEmail({
@@ -396,6 +396,7 @@ export const rejectWithdrawTransaction = async (req,res) => {
         subject: "Yêu cầu rút tiền bị từ chối",
         html: `
           <h3>Yêu cầu rút tiền của bạn đã bị từ chối</h3>
+          <p><strong>ID giao dịch:</strong> ${transactionIdShort}</p>
           <p><strong>Số tiền:</strong> ${transaction.amount.toLocaleString("vi-VN")} VND</p>
           <p><strong>Lý do:</strong> ${reason}</p>
           <p>Nếu bạn có thắc mắc, vui lòng liên hệ bộ phận hỗ trợ.</p>

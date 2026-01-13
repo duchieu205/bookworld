@@ -41,7 +41,7 @@ export const orderFailExpireCron = () => {
                 type: "Hoàn tiền",
                 status: "Thành công",
                 amount: order.total,
-                description: `Hoàn tiền đơn ${order._id} - giao hàng thất bại`,
+                description: `Hoàn tiền đơn ${order._id} - do giao hàng thất bại`,
             });
         }
         /* =====================
@@ -52,7 +52,7 @@ export const orderFailExpireCron = () => {
 
         order.status_logs.push({
             status: order.status,
-            note: "Tự động huỷ sau 2 lần giao hàng không thành công",
+            note: "Tự động hủy đơn do giao hàng thất bại sau 2 lần. Đơn hàng sẽ được hoàn tiền nếu quý khách hành đã thanh toán với ví hoặc VnPay",
             updatedBy: null,
         });
 
@@ -64,7 +64,7 @@ export const orderFailExpireCron = () => {
         });
 
         await order.save();
-        console.log("CRON auto-cancel running at", new Date().toLocaleString());
+        console.log("CRON tự động hủy đơn hàng sau 2 lần giao hàng không thành công", new Date().toLocaleString());
     
       }
     } catch (err) {

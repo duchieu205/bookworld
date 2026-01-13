@@ -30,6 +30,8 @@ export const sendEmail = async ({ to, subject, html }) => {
   }
 };
 
+
+//Hủy đơn
 export const sendCancelOrderMail = async ({to,order,note,prevPaymentStatus,}) => {
   try {
     const transporter = nodemailer.createTransport({
@@ -45,8 +47,9 @@ export const sendCancelOrderMail = async ({to,order,note,prevPaymentStatus,}) =>
         rejectUnauthorized: false, // Bỏ qua lỗi certificate
       },
     });
+    const shortOrderId = order._id.toString().slice(-8);
 
-    const subject = `Thông báo hủy đơn hàng #${order._id}`;
+    const subject = `Thông báo hủy đơn hàng #${shortOrderId}`;
     const refundNote =
       prevPaymentStatus === "Đã thanh toán"
         ? `<p style="color: green;"><strong>✔ Đơn hàng đã được hoàn tiền.</strong></p>`
@@ -60,7 +63,7 @@ export const sendCancelOrderMail = async ({to,order,note,prevPaymentStatus,}) =>
 
         <p>
           Chúng tôi rất tiếc phải thông báo rằng đơn hàng
-          <strong>#${order._id}</strong> của bạn đã bị <strong>Admin hủy</strong>.
+          <strong>#${shortOrderId}</strong> của bạn đã bị <strong>Admin hủy</strong>.
         </p>
 
         <p>
@@ -106,6 +109,8 @@ export const sendCancelOrderMail = async ({to,order,note,prevPaymentStatus,}) =>
   
 };
 
+
+//Trả hàng/hoàn tiền
 export const sendRejectReturnMail = async ({to,order,reason,}) => {
   try {
     const transporter = nodemailer.createTransport({
@@ -125,8 +130,8 @@ export const sendRejectReturnMail = async ({to,order,reason,}) => {
       console.warn("⚠️ Không có email người nhận, bỏ qua gửi mail");
       return;
     }
-
-    const subject = `Kết quả yêu cầu Trả hàng / Hoàn tiền đơn hàng #${order._id}`;
+    const orderCode = order._id.toString().slice(-8);
+    const subject = `Kết quả yêu cầu Trả hàng / Hoàn tiền đơn hàng #${orderCode}`;
 
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -136,7 +141,7 @@ export const sendRejectReturnMail = async ({to,order,reason,}) => {
 
         <p>
           Chúng tôi đã xem xét yêu cầu <strong>Trả hàng / Hoàn tiền</strong> của bạn
-          đối với đơn hàng <strong>#${order._id}</strong>.
+          đối với đơn hàng <strong>#${orderCode}</strong>.
         </p>
 
         <p>
@@ -186,6 +191,8 @@ export const sendRejectReturnMail = async ({to,order,reason,}) => {
  
 };
 
+//Hủy lệnh rút
+
 export const sendRejectWithDrawalEmail = async ({ to, subject, html }) => {
   try {
     const transporter = nodemailer.createTransport({
@@ -216,6 +223,8 @@ export const sendRejectWithDrawalEmail = async ({ to, subject, html }) => {
   }
 };
 
+
+// Khóa ví
 export const sendWalletEmail = async ({ to, subject, html }) => {
   try {
     const transporter = nodemailer.createTransport({
@@ -244,4 +253,171 @@ export const sendWalletEmail = async ({ to, subject, html }) => {
     console.error("❌ Lỗi gửi email:", error);
     throw new Error("Error sending email: " + error.message);
   }
+};
+
+//Giao hàng không thành công 2 lần
+
+export const buildDeliveryFailedMail = async ({ to, order_id, userName }) => {
+  try {
+   const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      // config này để fix lỗi SSL
+      tls: {
+        rejectUnauthorized: false, // Bỏ qua lỗi certificate
+      },
+    });
+    const shortOrderId = order_id.toString().slice(-8);
+    const subject = `Thông báo về tình trạng đơn hàng #${shortOrderId}`;
+
+    const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6">
+      <h2 style="color:#e74c3c">🚫 Giao hàng không thành công</h2>
+
+      <p>Xin chào <strong>${userName || "Quý khách"}</strong>,</p>
+
+      <p>
+        Đơn hàng <strong>#${shortOrderId}</strong> của bạn đã giao <strong>không thành công 2 lần</strong>.
+      </p>
+      
+      <p>
+        Đơn hàng <strong>#${shortOrderId}</strong> của bạn sẽ tự động chuyển sang trạng thái <strong>Đã hủy</strong>.
+      </p>
+
+      <p>
+        Theo chính sách của chúng tôi, đơn hàng sẽ được <strong>tự động huỷ</strong> và
+        <strong>hoàn tiền về ví</strong> (nếu đã thanh toán).
+      </p>
+
+    
+
+      <hr />
+
+
+      <p style="margin-top: 30px;">
+          Trân trọng,<br/>
+          <strong>Đội ngũ quản trị</strong>
+        </p>
+
+      <p style="color:#888;font-size:12px">
+        Email này được gửi tự động, vui lòng không trả lời.
+      </p>
+    </div>
+  `;
+   await transporter.sendMail({
+      from: `"Admin" <${process.env.EMAIL_USER}>`,
+      to,
+      subject,
+      html,
+    });
+    console.log('✅ Email sent successfully to:', to);
+  }
+  catch (error) {
+    console.error("❌ Lỗi gửi email:", error);
+    throw new Error("Error sending email: " + error.message);
+  }
+};
+
+export const buildOrderCreatedEmail = ({
+  userName,
+  orderId,
+  totalAmount,
+  paymentMethod,
+}) => {
+  const shortOrderId = orderId.toString().slice(-8).toUpperCase();
+
+  let paymentMessage = "";
+  let paymentBadgeColor = "#6b7280";
+
+  switch (paymentMethod) {
+    case "cod":
+      paymentMessage = `
+        <p>
+          Bạn đã chọn <strong>Thanh toán khi nhận hàng (COD)</strong>.
+          Vui lòng chuẩn bị số tiền <strong>${totalAmount}</strong> khi nhận đơn.
+        </p>
+      `;
+      paymentBadgeColor = "#f59e0b";
+      break;
+
+    case "wallet":
+      paymentMessage = `
+        <p>
+          Đơn hàng đã được <strong>thanh toán thành công bằng ví</strong>.
+          Chúng tôi sẽ tiến hành xử lý đơn hàng ngay.
+        </p>
+      `;
+      paymentBadgeColor = "#10b981";
+      break;
+
+    case "vnpay":
+      paymentMessage = `
+        <p>
+          Đơn hàng đã được <strong>thanh toán thành công qua VNPay</strong>.
+          Cảm ơn bạn đã tin tưởng BookWorld.
+        </p>
+      `;
+      paymentBadgeColor = "#2563eb";
+      break;
+
+    default:
+      paymentMessage = `<p>Phương thức thanh toán: ${paymentMethod}</p>`;
+  }
+
+  return `
+    <div style="font-family: Arial, sans-serif; background:#f9fafb; padding:20px">
+      <div style="max-width:600px; margin:auto; background:white; border-radius:10px; overflow:hidden">
+        
+        <!-- Header -->
+        <div style="background:#7c3aed; padding:20px; color:white; text-align:center">
+          <h1 style="margin:0">📚 BookWorld</h1>
+          <p style="margin:4px 0 0">Xác nhận tạo đơn hàng</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:24px">
+          <p>Xin chào <strong>${userName}</strong>,</p>
+
+          <p>
+            Cảm ơn bạn đã đặt hàng tại <strong>BookWorld</strong>.
+            Đơn hàng của bạn đã được tạo thành công.
+          </p>
+
+          <div style="background:#f3f4f6; padding:16px; border-radius:8px; margin:16px 0">
+            <p style="margin:0"><strong>Mã đơn hàng:</strong> #${shortOrderId}</p>
+            <p style="margin:8px 0 0"><strong>Tổng thanh toán:</strong> ${totalAmount}</p>
+            <p style="margin:8px 0 0">
+              <strong>Thanh toán:</strong>
+              <span style="
+                background:${paymentBadgeColor};
+                color:white;
+                padding:4px 10px;
+                border-radius:999px;
+                font-size:12px;
+              ">
+                ${paymentMethod.toUpperCase()}
+              </span>
+            </p>
+          </div>
+
+          ${paymentMessage}
+
+          <p>
+            Bạn có thể theo dõi trạng thái đơn hàng trong mục
+            <strong>Đơn hàng của tôi</strong>.
+          </p>
+
+          <p style="margin-top:24px">
+            Trân trọng,<br/>
+            <strong>Đội ngũ quản trị</strong>
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
 };

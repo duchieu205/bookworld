@@ -2,7 +2,7 @@ import cron from "node-cron";
 import WalletTransaction from "../models/walletTransaction.model.js";
 
 export const startWalletTransactionExpireCron = () => {
-  cron.schedule("*/1 * * * *", async () => {
+  cron.schedule("*/5 * * * *", async () => {
     try {
       const now = new Date();
 
@@ -23,6 +23,8 @@ export const startWalletTransactionExpireCron = () => {
           `[CRON] Đã cập nhật ${expiredWalletTransactions.length} lệnh nạp tiền quá hạn thanh toán`
         );
       }
+      console.log(`Cron hủy lệnh nạp tiền quá hạn chạy lúc:`, new Date().toLocaleString());
+
     } catch (err) {
       console.error("[CRON] Lỗi xử lý lệnh nạp tiền quá hạn:", err);
     }

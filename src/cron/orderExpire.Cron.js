@@ -2,7 +2,7 @@ import cron from "node-cron";
 import Order from "../models/order.js";
 import Variant from "../models/variant.js"
 export const startOrderExpireCron = () => {
-  cron.schedule("*/1 * * * *", async () => {
+  cron.schedule("*/5 * * * *", async () => {
     try {
       const now = new Date();
 
@@ -39,6 +39,8 @@ export const startOrderExpireCron = () => {
           `[CRON] Đã hủy ${expiredOrders.length} đơn quá hạn. IDs: ${ids}`
         );
       }
+      console.log(`Cron hủy đơn hàng chưa thanh toán với VnPay chạy lúc:`, new Date().toLocaleString());
+
     } catch (err) {
       console.error("[CRON] Lỗi xử lý đơn quá hạn:", err);
     }

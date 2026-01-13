@@ -14,7 +14,7 @@ import "./src/configs/passport.js";
 import authRoutes from "./src/routes/auth.js";
 import { startOrderExpireCron } from "./src/cron/orderExpire.Cron.js";
 import { startWalletTransactionExpireCron } from "./src/cron/walletTransactionExpire.Cron.js";
-import { completeOrderExpriceCron} from "./src/cron/completeOrderExpire.Cron.js";
+import { completeOrderExpireCron} from "./src/cron/completeOrderExpire.Cron.js";
 import {orderFailExpireCron} from "./src/cron/orderFailExpire.Cron.js"
 const app = express();
 
@@ -71,7 +71,7 @@ const server = app.listen(PORT, () => {
 });
 startOrderExpireCron();
 startWalletTransactionExpireCron();
-completeOrderExpriceCron();
+completeOrderExpireCron();
 orderFailExpireCron();
 
 /* ================= PROCESS ERROR ================= */

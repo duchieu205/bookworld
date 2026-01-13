@@ -4,9 +4,12 @@ import Variant from "../models/variant.js";
 import Discount from "../models/Discount.js";
 import createError from "../utils/createError.js";
 import Wallet from "../models/wallet.js";
+import User from "../models/User.js";
+
 import WalletTransaction from "../models/walletTransaction.model.js";
 import { computeDiscountForItems } from "../utils/discountUtil.js";
-import {sendWalletEmail} from "../utils/sendEmail.js"
+import {sendWalletEmail, sendEmail, buildOrderCreatedEmail} from "../utils/sendEmail.js"
+
 
 export const createOrderWithWallet = async (req, res) => {
   
@@ -180,6 +183,17 @@ export const createOrderWithWallet = async (req, res) => {
                 );
             }
         }
+        const user = User.findOne({_id: userId})
+            await sendEmail({
+            to: user.email,
+            subject: "📦 Xác nhận tạo đơn hàng tại BookWorld",
+            html: buildOrderCreatedEmail({
+              userName: user.name,
+              orderId: order._id,
+              totalAmount: Number`${order.total}Đ`,
+              paymentMethod: order.payment.method, 
+            }),
+        });
         
         return res.status(201).json({
             success: true,
