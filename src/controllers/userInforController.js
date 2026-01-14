@@ -74,15 +74,18 @@ export const updateInfo = async (req, res) => {
     }
 };
 
-
-
-
 export const getFavorites = async (req, res) => {
   try {
     const userId = req.user._id;
 
     const favourite = await Favourite.findOne({ user_id: userId })
-      .populate("items.product_id"); 
+      .populate({
+        path: "items.product_id",
+        populate: {
+          path: "category",  
+          select: "name _id" 
+        }
+      });
 
     if (!favourite) return res.json([]);
 
@@ -90,7 +93,8 @@ export const getFavorites = async (req, res) => {
       .filter(item => item.product_id)
       .map(item => ({
         _id: item.product_id._id,
-        product: item.product_id
+        product: item.product_id,
+        createdAt: item.createdAt || new Date()
       }));
 
     return res.status(200).json(result);
@@ -100,8 +104,6 @@ export const getFavorites = async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 };
-
-
 
 // =========================
 // POST - Thêm sản phẩm yêu thích
