@@ -128,7 +128,12 @@ export const createOrder = async (req, res) => {
   }
 
   const total = Math.max(0, subtotal + shipping_fee - discountAmount);
-
+ if (total >= 5000000) {
+  throw createError(
+    400,
+    "Đơn hàng quá lớn. Vui lòng thực hiện thanh toán bằng ví hoặc VnPay"
+  );
+}
   const order = await Order.create({
     user_id: userId,
     items: orderItems,
@@ -591,9 +596,9 @@ export const refundOrderToWallet = async (req, res) => {
 export const requestReturnOrder = async (req, res) => {
     const userId = req.user?._id;
     const {reason, images} = req.body;
-    if (!reason || !images) {
-      throw createError(401, "Thiếu thông tin gửi lên"); 
-    }
+    if (!reason || !images || images.length === 0) {
+    throw createError(400, "Vui lòng nhập lý do và gửi hình ảnh");
+  }
     if (!userId) throw createError(401, "Chưa đăng nhập");
     const { orderId } = req.params;
 
